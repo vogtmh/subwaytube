@@ -1,0 +1,562 @@
+body {
+    touch-action: manipulation;
+    background-color: #000;
+    color: #fff;
+    font-family: Segoe, Arial, Helvetica, Sans-Serif;
+    text-align: center;
+    overflow-x: hidden;
+    user-select:none;
+}
+
+a {
+    color: Highlight;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+#header {
+    height: 50px;
+    margin-bottom: 10px;
+    margin-left: 5%;
+    width: 90%;
+    font-size: 32px;
+    line-height: 50px;
+}
+
+#toplogo {
+    height:100%;
+    float:left;
+    text-align:left;
+}
+
+#toplogo img {
+    height: 100%;
+}
+
+#topsettings {
+    position:absolute;
+    top:0px;
+    right:0px;
+    width: 120px;
+    text-align:center;
+    height: 40px;
+    opacity: 0.9;
+}
+
+#display_fullsize {
+    height: 100%;
+    width: 33%;
+    float: left;
+    background-color: #333;
+    opacity: 0.8;
+    text-align: center;
+}
+
+#display_fullsize:hover {
+    opacity: 1.0;
+     cursor: pointer;
+}
+
+#display_fullsize img {
+    height: 100%;
+}
+
+#display_quarters {
+    height: 100%;
+    width: 33%;
+    float: left;
+    background-color: #333;
+    text-align: center;
+}
+
+#display_quarters:hover {
+    opacity: 1.0;
+    cursor: pointer;
+}
+
+#display_quarters img {
+    height:100%;
+}
+
+#display_niners {
+    height: 100%;
+    width: 33%;
+    float: left;
+    background-color: #333;
+    text-align: center;
+}
+
+#display_niners:hover {
+    opacity: 1.0;
+    cursor: pointer;
+}
+
+#display_niners img {
+    height: 100%;
+}
+
+#searchbox {
+    margin-bottom:20px;
+    height: 50px;
+    width:100%;
+}
+
+#searchtext {
+    width: 70%;
+    float: left;
+    margin-top: 9px;
+    height: 32px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.pwbutton {
+    width: 25%;
+    float: right;
+    height: 38px;
+    margin-top: 8px;
+    font-size: 16px;
+    line-height: 38px;
+    text-align: center;
+    background-color: #555;
+    cursor: pointer;
+}
+
+.pwbutton:hover {
+    background-color: #777;
+}
+
+#content {
+    margin-left: 5%;
+    width: 90%;
+}
+
+#trycount {
+    position: absolute;
+    top:25%;
+    left:0px;
+    width: 100%;
+    text-align:center;
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.videoitem {
+    width: 100%;
+    margin-bottom: 40px;
+    float: left;
+    cursor:pointer;
+}
+
+.videoitem img {
+    width: 100%;
+}
+
+.videoinfo {
+    height: 5em;
+}
+
+#pages {
+    height:100px;
+    width: 100%;
+    float:left;
+}
+
+#tabheader {
+    text-align: left;
+    font-weight: bold;
+    font-size: 1.5em;
+    margin-bottom: 0.5em;
+}
+
+.pageselector {
+    width: 40px;
+    height: 40px;
+    text-align: center;
+    font-size: 24px;
+    line-height: 40px;
+    float: left;
+    background-color: #555;
+    cursor: pointer;
+    margin: 10px;
+}
+
+.pageselector:hover {
+    background-color: #777;
+}
+
+#channelviewer {
+    position: fixed;
+    z-index: 950;
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 0px;
+    background-color: #000;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    display: none;
+}
+
+#channelheader {
+    width: 100%;
+    margin-top: 30px;
+}
+
+#channeltablist {
+    width: 100%;
+    height: 32px;
+    line-height:32px;
+}
+
+.channeltab {
+    width: 50%;
+    height: 100%;
+    background-color:#333;
+    float:left;
+    cursor: pointer;
+}
+
+#favtablist {
+    width: 100%;
+    height: 32px;
+    line-height: 32px;
+    margin-bottom: 10px;
+}
+
+.favtab {
+    width: 50%;
+    height: 100%;
+    background-color: #333;
+    float: left;
+    cursor: pointer;
+}
+
+#channelcontent {
+    margin-top: 6%;
+    text-align: center;
+}
+
+#closechannel {
+    position: absolute;
+    top: 0px;
+    right: 10px;
+    width: 40px;
+    height: 40px;
+    line-height: 40px;
+}
+
+#videoplayer {
+    position: fixed; 
+    z-index: 1000;
+    top:0px;
+    left:0px;
+    bottom:0px;
+    right: 0px;
+    background-color: #000;
+    display:none;
+}
+
+#loadingimage {
+    position: absolute;
+    top: 40%;
+    left: 40%;
+    bottom: 40%;
+    right: 40%;
+}
+
+#loadingimage img {
+    width: 100%;
+}
+
+#videofile {
+    position: absolute;
+    top: 0px; 
+    left: 0px;
+    width: 100%;
+}
+
+#rewind {
+    position: absolute;
+    top: 70px;
+    left: 20%;
+    height: 40px;
+    width: 40px;
+    margin-left: -20px;
+    background-color: Highlight;
+    border-radius: 50%;
+    opacity: 0.8;
+    display: none;
+}
+
+#rewind:hover {
+     opacity: 1.0;
+}
+
+#rewind img {
+    height: 100%;
+}
+
+#play {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    height: 80px;
+    width: 80px;
+    margin-left: -40px;
+    background-color: Highlight;
+    border-radius: 50%;
+    opacity: 0.8;
+    display: none;
+}
+
+#play:hover {
+    opacity: 1.0;
+}
+
+#play img {
+    height: 100%;
+}
+
+#pause {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    height: 80px;
+    width: 80px;
+    margin-left: -40px;
+    background-color: Highlight;
+    border-radius: 50%;
+    opacity: 0.8;
+    display: none;
+}
+
+#pause:hover {
+    opacity: 1.0;
+}
+
+#pause img {
+    height: 100%;
+}
+
+#forward {
+    position: absolute;
+    top: 70px;
+    right: 20%;
+    height: 40px;
+    width: 40px;
+    margin-right: -20px;
+    background-color: Highlight;
+    border-radius: 50%;
+    opacity: 0.8;
+    display: none;
+}
+
+#forward:hover {
+    opacity: 1.0;
+}
+
+#forward img {
+    height: 100%;
+}
+
+#closevideo {
+    position: absolute;
+    top:0px; 
+    right:10px;
+    width:40px;
+    height:40px;
+    line-height:40px;
+    display:none;
+    background-color: Highlight;
+    opacity: 0.6;
+}
+
+#sharelink {
+    width: 30%;
+    height: 32px;
+    background-color: #555;
+    color: #fff;
+}
+
+#sharebutton {
+    height: 32px;
+    width: 100%;
+    cursor:pointer;
+}
+
+#sharebutton img {
+    height: 100%;
+}
+
+#sharetext {
+    margin-left: 10%;
+    height: 32px;
+    line-height: 32px;
+    width: 80%;
+}
+
+#likebutton {
+    height: 32px;
+    width: 100%;
+    cursor:pointer;
+}
+
+#likebutton img {
+    height: 100%;
+}
+
+#downloadbutton {
+    height: 32px;
+    width: 100%;
+    cursor:pointer;
+}
+
+#downloadbutton img {
+    height: 100%;
+}
+
+#settingsmenu {
+    position: fixed;
+    z-index: 1000;
+    top: 0px;
+    left: 0px;
+    bottom: 0px;
+    right: 0px;
+    background-color: #000;
+    display: none;
+}
+
+#settingslist {
+    position: absolute;
+    top: 5%;
+    left: 10%;
+    right: 10%;
+    bottom: 30%;
+}
+
+.settingsitem {
+    width: 100%;
+    height: 32px;
+    line-height: 32px;
+    font-size: 18px;
+    text-align:left;
+    margin-bottom: 18px;
+}
+
+#setting_serverlist {
+   margin-top:5%;
+   height: 70px;
+}
+
+#setting_serverlist select{
+    font-size: 18px;
+}
+
+#settingstext {
+    margin-top: 10px;
+    text-align: center;
+    width: 100%;
+}
+
+.settingsbutton {
+    height: 80px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    text-align: center;
+    background-color: #333;
+    cursor: pointer;
+}
+
+.settingsbutton:hover {
+    cursor: pointer;
+    background-color: #555;
+}
+
+.settingsbutton img {
+    height: 40px;
+}
+
+#downloadfolder {
+    margin-top: 10px;
+    text-align: left;
+    width: 100%;
+}
+
+#applybutton {
+    position: absolute;
+    bottom: 15%;
+    left: 5%;
+    width: 25%;
+    height: 38px;
+    margin-top: 8px;
+    font-size: 16px;
+    line-height: 38px;
+    text-align: center;
+    background-color: #555;
+    cursor: pointer;
+}
+
+#applybutton:hover {
+    background-color: #777;
+}
+
+#cancelbutton {
+    position:absolute;
+    bottom: 15%;
+    right: 23%;
+    width: 25%;
+    height: 38px;
+    margin-top: 8px;
+    font-size: 16px;
+    line-height: 38px;
+    text-align: center;
+    background-color: #555;
+    cursor: pointer;
+}
+
+#cancelbutton:hover {
+    background-color: #777;
+}
+
+#spacer {
+    width: 100%;
+    height: 80px;
+    float: left;
+}
+
+#bottomnavigation {
+    position: fixed;
+    z-index: 900;
+    left: 0px;
+    bottom: 0px;
+    width: 100%;
+    height: 7%;
+    background-color: #000;
+    opacity: 0.9;
+}
+
+.navbutton {
+    height: 100%;
+    width: 33%;
+    float: left;
+    text-align: center;
+    opacity: 0.8;
+    cursor: pointer;
+    background-color: #111;
+}
+
+.navbutton img {
+    height: 100%;
+}
+
+.navbutton:hover {
+    opacity: 1.0;
+}
+
+#nav_favourites {
+    width: 34%;
+}

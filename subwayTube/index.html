@@ -1,0 +1,48 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta charset="utf-8" />
+    <title>subwayTube</title>
+    <link href="css/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="css/default.css">
+</head>
+<body>
+    <script src="js/jquery-3.7.1.min.js"></script>
+    <script src="js/main.js"></script>
+    <div id="header">
+        <div id="toplogo"><img src="images/toplogo.png" style="height:100%;" /></div>
+        <div id="topsettings">
+            <div id="display_fullsize"><img src="images/display_fullsize.png" onclick='switchFullsize()' /></div>
+            <div id="display_quarters"><img src="images/display_quarters.png" onclick='switchQuarters()' /></div>
+            <div id="display_niners"><img src="images/display_niners.png" onclick='switchNiners()' /></div>
+        </div>
+    </div>
+
+    <div id="videoplayer">
+        <video controls autoplay id="videofile" name="videofile"><source src="" type="video/mp4"></video>
+        <div id="loadingimage"><img src="images/loading.gif" /></div>
+        <div id="rewind" class="pwbutton videocontrols" onclick="rewindVideo()"><img src="images/rewind.png" /></div>
+        <div id="play" class="pwbutton videocontrols" onclick="toggleVideo()"><img src="images/play.png" /></div>
+        <div id="pause" class="pwbutton videocontrols" onclick="toggleVideo()"><img src="images/pause.png" /></div>
+        <div id="forward" class="pwbutton videocontrols" onclick="forwardVideo()"><img src="images/forward.png" /></div>
+        <div id="closevideo" class="pwbutton videocontrols" onclick="closeVideoplayer()">X</div>
+        <div id="videotitle"></div>
+    </div>
+
+    <div id="content"></div>
+    <div id="channelviewer">
+        <div id="channelheader"></div>
+        <div id="channeltablist"></div>
+        <div id="channelcontent"><img src="images/loading.gif" /></div>
+        <div id="closechannel" class="pwbutton" onclick="closeChannel()">X</div>
+    </div>
+    <div id="bottomnavigation">
+        <div id="nav_feed" class="navbutton" onclick="getFeed(1)"><img src="images/feed.png" /></div>
+        <div id="nav_favourites" class="navbutton" onclick="getFavorites()"><img src="images/favourite.png" /></div>
+        <div id="nav_settings" class="navbutton" onclick="showSettings()"><img src="images/settings2.png" /></div>
+    </div>
+    <input id="contentFile" type="file" accept="application/json" style="display:none;" />
+</body>
+
+</html>
