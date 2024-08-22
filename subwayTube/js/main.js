@@ -4,11 +4,18 @@ var serverlist;
 var timeoutid;
 var subscriptions = [];
 var playhistory = [];
+var searchhistory = [];
 var tab = 'trending';
 var selectedFolder;
 var downloadFolder;
 var videoActive = false;
 var channelFeed = []
+let touchstartY = 0;
+let refreshindex = 0;
+let feedcontent = '';
+let feedtimestamp = (new Date).getTime();
+var streamquality;
+var audiosyncID;
 
 // Random GUID I created, just to ensure I'm updating the same old entry
 var downloadsFolderToken = "932a43b0-37f8-4553-8d4b-ad94f5d280dc";
@@ -52,7 +59,7 @@ function shortStr(string) {
 // load basic app settings or apply defaults
 function loadSettings() {
     if (localStorage.getItem("invidious_server") === null) {
-        localStorage.invidious_server = 'https://invidious.nerdvpn.de';
+        localStorage.invidious_server = 'https://invidious.perennialte.ch';
         server = localStorage.invidious_server;
     } else {
         server = localStorage.invidious_server;
@@ -70,6 +77,15 @@ function loadSettings() {
         downloadFolder = localStorage.downloadfolder;
     } else {
         downloadFolder = localStorage.downloadfolder;
+    }
+
+    if (localStorage.getItem("streamquality") === null) {
+        console.log('Stream Quality set to 360p')
+        localStorage.streamquality = '360p';
+        streamquality = localStorage.streamquality;
+    } else {
+        streamquality = localStorage.streamquality;
+        console.log('Stream Quality set to '+streamquality)
     }
 }
 
@@ -119,33 +135,94 @@ function switchNiners() {
     localStorage.sizing = 'niners';
 }
 
-function getFeed(trycount) {
+function startTouch (e) {
+    touchstartY = e.touches[0].clientY;
+}
+
+function moveTouch(e) {
+    const pullToRefresh = document.querySelector('.pull-to-refresh');
+    const touchY = e.touches[0].clientY;
+    const touchDiff = touchY - touchstartY;
+    if (touchDiff > 30) {
+        $(".pull-to-refresh").css("height", (touchDiff / 3)-10);
+        $(".pull-to-refresh").html("pull down to refresh");
+    }
+    if (touchDiff > 300 && window.scrollY === 0) {
+        pullToRefresh.classList.add('visible');
+        $(".pull-to-refresh").css("height", "100px");
+        $(".pull-to-refresh").html("ok");
+        e.preventDefault();
+    }
+    if (touchDiff < 300) {
+        pullToRefresh.classList.remove('visible');
+    }
+}
+
+function stopTouch(e) {
+    const pullToRefresh = document.querySelector('.pull-to-refresh');
+    $(".pull-to-refresh").css("height", "0px");
+    $(".pull-to-refresh").html("");
+    if (pullToRefresh.classList.contains('visible')) {
+        pullToRefresh.classList.remove('visible');
+        getFeed(1);
+    }
+}
+
+function showFeed() {
     tab = 'trending';
+    let timenow = (new Date).getTime();
+    let feedage = timenow - feedtimestamp;
+    if (feedage > 1800000) {
+        feedcontent = '';
+        feedtimestamp = timenow;
+    }
+    if (feedcontent == '') {
+        getFeed(1);
+    }
+    else {
+        printFeed(1);
+    }
+}
+
+function printFeedHeader(trycount) {
     $("#topsettings").show();
     applySizing();
     let requesturl = server + '/api/v1/trending'
     $(".navbutton").css("background-color", "#111");
     $("#nav_feed").css("background-color", "Highlight");
-    let search = `<div id="searchbox">
-                    <input type="text" id="searchtext" name="searchtext" size="14" />
-                    <div class="pwbutton" id="searchbutton" onclick='searchVideos()'>OK</div>
-                  </div>
-                  <div id="feed">
-                    <div id="trycount">`+trycount+`</div>
+    let search = ``;
+
+    search += `<div class="pull-to-refresh"></div>`;
+    search += `<div id="feed">
+                    <div id="trycount">`+ trycount + `</div>
                     <img src="images/loading.gif" />
                   </div>`;
+
     $("#content").html(search);
+
+    document.getElementById("feed").addEventListener('touchstart', (event) => startTouch(event))
+    document.getElementById("feed").addEventListener('touchmove', (event) => moveTouch(event));
+    document.getElementById("feed").addEventListener('touchend', (event) => stopTouch(event));
+
     $('#searchtext').keydown(function (event) {
         if (event.which === 13) {
             $("#searchtext").blur()
             searchVideos()
         }
     });
+}
+
+function getFeed(trycount) {
+    if (tab == 'trending') {
+        printFeedHeader(trycount)
+    }
 
     if (subscriptions.length > 0) {
-        getChannelsFeed();
+        refreshindex++;
+        getChannelsFeed(refreshindex);
     }
     else {
+        var requesturl = server + '/api/v1/trending?hl=en-US'
         $.ajax({
             url: requesturl,
             type: 'GET',
@@ -189,6 +266,14 @@ function getFeed(trycount) {
     }
 }
 
+function printFeed(trycount) {
+    if (tab == 'trending') {
+        printFeedHeader()
+        $('#feed').html(feedcontent);
+        applySizing();
+    }
+}
+
 function updateFeed() {
     let html = ``;
     let currentFeed = sortByKey_inverse(channelFeed, 'published');
@@ -203,21 +288,19 @@ function updateFeed() {
         if (i > 49) { break; }
     }
     html += '<div id="spacer"></div>'
-    if (tab == 'trending') {
-        $('#feed').html(html);
-    }
-    applySizing();
+    feedcontent = html;
+    printFeed();
 }
 
 function getChannelsFeed() {
     channelFeed = [];
     for (var i = 0; i < subscriptions.length; i++) {
         let channelId = subscriptions[i].authorId;
-        getChannelForFeed(channelId)
+        addChannelToFeed(channelId, 'videos', refreshindex)
     }
 }
 
-function getChannelForFeed(channelId, mode) {
+function addChannelToFeed(channelId, mode, index) {
     var requesturl = server + '/api/v1/channels/' + channelId + '?hl=en-US'
     if (mode == 'streams') {
         requesturl = server + '/api/v1/channels/' + channelId + '/streams?hl=en-US'
@@ -229,7 +312,6 @@ function getChannelForFeed(channelId, mode) {
         type: 'GET',
         dataType: 'json',
         success(response) {
-            //console.log(response);
             var author;
             var authorThumbnail;
             var latest;
@@ -247,7 +329,7 @@ function getChannelForFeed(channelId, mode) {
                     let tabname = availabletabs[t];
                     switch (tabname) {
                         case "streams":
-                            getChannelForFeed(channelId, 'streams');
+                            addChannelToFeed(channelId, 'streams', index);
                             break;
                     }
                 }
@@ -255,39 +337,85 @@ function getChannelForFeed(channelId, mode) {
             
             for (var i = 0; i < latest.length; i++) {
                 var element = latest[i];
-                let title = element.title;
                 let published = element.published;
                 let publishedText = element.publishedText;
-                var image = '';
-                $.each(element.videoThumbnails, function (i, thumbnail) {
-                    if (thumbnail.quality == "medium") {
-                        image = thumbnail.url;
-                        return false; // stops the loop
+                if (publishedText != '0 seconds ago') {
+                    let title = element.title;
+                    var image = '';
+                    $.each(element.videoThumbnails, function (i, thumbnail) {
+                        if (thumbnail.quality == "medium") {
+                            image = thumbnail.url;
+                            return false; // stops the loop
+                        }
+                    });
+                    let videoId = element.videoId;
+                    let authorId = element.authorId;
+                    let author = element.author;
+                    let videoitem = {
+                        "author": author,
+                        "authorId": authorId,
+                        "videoId": videoId,
+                        "title": title,
+                        "image": image,
+                        "published": published,
+                        "publishedText": publishedText
                     }
-                });
-                let videoId = element.videoId;
-                let authorId = element.authorId;
-                let author = element.author;
-                let videoitem = {
-                    "author": author,
-                    "authorId": authorId,
-                    "videoId": videoId,
-                    "title": title,
-                    "image": image,
-                    "published": published,
-                    "publishedText": publishedText
+                    if (index == refreshindex) {
+                        channelFeed.push(videoitem);
+                    }
                 }
-                channelFeed.push(videoitem);
             }
-            var postChannelFeed = {}
-            postChannelFeed = sortByKey_inverse(channelFeed, 'published');
-            //console.log(postChannelFeed);
             updateFeed()
         },
         error(jqXHR, status, errorThrown) {
             console.log('failed to fetch ' + requesturl)
         },
     });
+}
+
+function showSearch() {
+    tab = 'search';
+    $("#topsettings").show();
+    applySizing();
+    $(".navbutton").css("background-color", "#111");
+    $("#nav_search").css("background-color", "Highlight");
+    let search = `<div id="searchbox">
+                    <input type="text" id="searchtext" name="searchtext" size="14" />
+                    <div class="pwbutton" id="searchbutton" onclick='searchVideos()'>OK</div>
+                  </div>`;
+
+    search += `<div id="feed">
+                    <div id="trycount"></div>
+               </div>`;
+
+    $("#content").html(search);
+
+    $('#searchtext').keydown(function (event) {
+        if (event.which === 13) {
+            $("#searchtext").blur()
+            searchVideos()
+        }
+    });
+
+    $("#searchtext").focus();
+
+    var output = '';
+    if (searchhistory.length > 0) {
+        for (var h = (searchhistory.length - 1); h > -1; h--) {
+            let query = searchhistory[h].query;
+            output += `<div class="searchhistoryitem" onclick='$("#searchtext").val("`+query+`"); searchVideos()'>` + query + `</div>`;
+        }
+    }
+    else {
+        output += '<table style="text-align: left; width: 100%;">';
+        output += '<tr><td>No searches done yet</td></tr>';
+    }
+    output += '<div id="spacer"></div>'
+    if (tab == 'search') {
+        $('#feed').html(output);
+        applySizing();
+        window.scrollTo(0, 0);
+    }
 }
 
 function getFavorites() {
@@ -380,6 +508,8 @@ function searchVideos(page, sortbydate) {
         searchstring = searchstring.split('&')[0];
     }
     $("#searchtext").val(searchstring)
+    addSearchhistoryItem(searchstring);
+
     if (sortbydate == false) {
         requesturl = server + '/api/v1/search?q=' + searchstring + '&page=' + currentpage + '&hl=en-US'
     }
@@ -413,6 +543,7 @@ function searchVideos(page, sortbydate) {
                     }
                     else {
                         let title = element.title;
+                        let author = element.author;
                         var image = '';
                         $.each(element.videoThumbnails, function (i, thumbnail) {
                             if (thumbnail.quality == "medium") {
@@ -421,7 +552,7 @@ function searchVideos(page, sortbydate) {
                             }
                         });
                         let videoId = element.videoId;
-                        html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + '"/><div class="videoinfo">' + title +' ('+type+')' + '<br/>' + published + '</div></div>';
+                        html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + '"/><div class="videoinfo">' + shortStr(title) + '<br/>' + author + '<br/>' + published + '</div></div>';
                     }
                 }
             }
@@ -518,9 +649,30 @@ function addHistoryItem(videoId, videotitle, videothumbnail, authorId, author) {
     localStorage.playhistory = JSON.stringify(playhistory);
 }
 
+function addSearchhistoryItem(query) {
+    var newSearchHistory = []
+    for (var h = 0; h < searchhistory.length; h++) {
+        let historyitem = searchhistory[h]
+        let historyquery = historyitem.query;
+        if (query != historyquery) {
+            newSearchHistory.push(historyitem);
+        }
+    }
+
+    var history_json = {
+        "query": query
+    };
+    newSearchHistory.push(history_json);
+
+    searchhistory = newSearchHistory;
+    localStorage.searchhistory = JSON.stringify(searchhistory);
+}
+
 function clearHistory() {
     playhistory = [];
+    searchhistory = [];
     localStorage.playhistory = JSON.stringify(playhistory);
+    localStorage.searchhistory = JSON.stringify(searchhistory);
     console.log('History has been cleared.')
     $("#settingstext").html('History has been cleared.')
     setTimeout(clearSettingstext, 3000)
@@ -528,7 +680,6 @@ function clearHistory() {
 
 function followChannel(authorId, author, authorThumbnail, origin) {
     
-    //$("#likebutton img").css("background-color", "Highlight")
     if (isSubscribed(authorId)) {
             console.log("already suscribed to " + author)
             $("#sharetext").html("already suscribed to " + author)
@@ -718,6 +869,17 @@ function convertHistory() {
     console.log('Conversion of history done. Reloading ..')
 }
 
+function loadSearchHistory() {
+    if (localStorage.getItem("searchhistory") === null) {
+        console.log('[Search History] no items in search history yet')
+    } else {
+        searchhistory = JSON.parse(localStorage.searchhistory);
+        searchhistorycount = searchhistory.length;
+
+        console.log('[Search History] ' + searchhistorycount + ' items in history loaded')
+    }
+}
+
 function playVideo(id, trycount) {
     videoActive = true;
     let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US";
@@ -739,8 +901,24 @@ function playVideo(id, trycount) {
                 let authorThumbnail = response.authorThumbnails['2'].url;
                 let authorThumbnailString = encodeURIComponent(authorThumbnail)
                 let published = response.publishedText;
-                let stream = response.formatStreams[0];
-                //window.location.href = stream.url;
+                var stream = response.formatStreams[0];
+                var audiostream = '';
+                if (streamquality != '360p') {
+                    console.log('Looking for adaptive format..')
+                    $.each(response.adaptiveFormats, function (i, format) {
+                        if (format.resolution == streamquality && format.encoding == "h264") {
+                            stream = format;
+                            console.log(format);
+                            return false; // stops the loop
+                        }
+                    });
+                }
+                $.each(response.adaptiveFormats, function (i, format) {
+                    if (format.container == 'm4a' && audiostream == '') {
+                        audiostream = format;
+                        return false;
+                    }
+                });
 
                 let sharelink = 'https://youtu.be/' + id
                 var likeimage = '';
@@ -758,15 +936,17 @@ function playVideo(id, trycount) {
                 }
                 infotext += `<td><div id="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td>`;
                 let videourl = stream.url;
+                var downloadurl = response.formatStreams[0].url;
                 let videoname = (title + '.mp4').replace(/['/\\?%*:|"<>]+/g, '-')
 
                 infotext += `<td style="width:20%"><div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div></td>
-                             <td><div id="downloadbutton" onclick='downloadVideo("` + videourl + `","` + videoname + `")'><img src="images/download.png"></div></td>`;
+                             <td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `")'><img src="images/download.png"></div></td>`;
                 infotext += `</tr></table>`;
                 infotext += '<div id="sharetext"></div>'
 
                 if (videoActive) {
                     $('#videofile').attr('src', stream.url);
+                    $('#audiofile').attr('src', audiostream.url);
                     $("#loadingimage").hide();
 
                     $("#videotitle").html(infotext)
@@ -819,14 +999,19 @@ function rewindVideo() {
 function toggleVideo() {
     showControls()
     let video = document.getElementById("videofile");
+    let audio = document.getElementById("audiofile");
 
     if (video.paused) {
         video.play();
+        if (streamquality != '360p') {
+            audio.play();
+        }
         $("#pause").show();
         $("#play").hide();
     }
     else {
         video.pause();
+        audio.pause();
         $("#play").show();
         $("#pause").hide();
     }
@@ -878,14 +1063,17 @@ function videoResize() {
 function closeVideoplayer() {
     $("#videoplayer").hide();
     $('#videofile').attr('src', '');
+    $('#audiofile').attr('src', '');
     $("#videotitle").html('')
     videoActive = false;
 }
 
 function showControls() {
     videoResize()
+
     if (videoActive) {
         let video = document.getElementById("videofile");
+
         $(".videocontrols").show();
         if (timeoutid) {
             clearTimeout(timeoutid);
@@ -909,6 +1097,26 @@ function hideControls() {
     $(".videocontrols").hide();
 }
 
+function syncAudio() {
+    if (videoActive && streamquality != '360p') {
+        try {
+            let video = document.getElementById("videofile");
+            let audio = document.getElementById("audiofile");
+            audio.currentTime = video.currentTime
+
+            if (video.paused) {
+                audio.pause()
+            }
+            else {
+                audio.play()
+            }
+        }
+        catch (e) {
+            console.log('Could not sync audio!')
+        }
+    }
+}
+
 function showChannel(id) {
     closeVideoplayer();
     $("#channelviewer").show();
@@ -920,7 +1128,6 @@ function showChannel(id) {
         type: 'GET',
         dataType: 'json',
         success(response) {
-            console.log(response)
             let author = response.author;
             let authorThumbnail = response.authorThumbnails[3].url;
             let latest = response.latestVideos;
@@ -994,11 +1201,10 @@ function showChannelStreams(id) {
             var html = '';
             for (var i = 0; i < response.videos.length; i++) {
                 var element = response.videos[i];
-                console.log(element)
                 let type = element.type;
-                if (type == "video") {
+                let publishedText = element.publishedText;
+                if (type == "video" && publishedText != '0 seconds ago') {
                     let title = element.title;
-                    let published = element.publishedText;
                     var image = '';
                     $.each(element.videoThumbnails, function (i, thumbnail) {
                         if (thumbnail.quality == "medium") {
@@ -1007,7 +1213,7 @@ function showChannelStreams(id) {
                         }
                     });
                     let videoId = element.videoId;
-                    html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + '"/><div class="videoinfo">' + shortStr(title) + '<br/>' + published + '</div></div>';
+                    html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + '"/><div class="videoinfo">' + shortStr(title) + '<br/>' + publishedText + '</div></div>';
                 }
                 
             }
@@ -1113,6 +1319,7 @@ function showSettings() {
                
                     <div id="settingstext"></div>
                     <div id="downloadpath">Download folder: <br/>`+ downloadFolder +` <button onclick="selectDownloadPath()">Change</button></div>
+                    <div id="streamquality"></div>
                     <div id="applybutton" style='display:none;' onclick='applySettings()'>Apply</div>
                   </div>`
     if (tab == 'settings') {
@@ -1120,6 +1327,29 @@ function showSettings() {
     }
 
     getServerlist()
+    getStreamquality()
+}
+
+function getStreamquality() {
+    let qualities = ['144p', '360p', '720p', '1080p'];
+
+    let output = `<label for="streamqualityselect">Stream Quality:</label>
+                  <select name="streamqualityselect" id="streamqualityselect" onchange="applySettings()">`;
+    for (let i = 0; i < qualities.length; i++) {
+        let quality = qualities[i];
+        let qualitytext = quality + ' (audio issues)';
+        if (quality == '360p') {
+            qualitytext = quality + ' (recommended)';
+        }
+        if (quality == streamquality) {
+            output += '<option value="' + quality + '" selected>' + qualitytext + '</option>'
+        }
+        else {
+            output += '<option value="' + quality + '">' + qualitytext + '</option>'
+        }
+    }
+    output += '</select>';
+    $("#streamquality").html(output); 
 }
 
 function createBackup() {
@@ -1227,7 +1457,10 @@ function applySettings() {
     localStorage.invidious_server = 'https://'+servername;
     server = localStorage.invidious_server;
     showServerstats()
-    $("#settingsmenu").hide();
+    let quality = $("#streamqualityselect").val()
+    localStorage.streamquality = quality;
+    streamquality = localStorage.streamquality;
+    showServerstats()
 }
 
 // prevents that each back button press will suspend the app
@@ -1243,7 +1476,7 @@ function onBackPressed(event) {
         event.handled = true;
     }
     else if (navfeed_color == 'rgb(17, 17, 17)') {
-        getFeed(1)
+        showFeed()
         event.handled = true;
     }
 }
@@ -1315,6 +1548,17 @@ function fileExists(folder, fileName) {
 }
 
 function saveFileToFolder(folder, fileUrl, fileName) {
+    return downloadFile(fileUrl).then(function (fileData) {
+        return fileData;
+    }).then(function (fileData) {
+        return folder.createFileAsync(fileName, Windows.Storage.CreationCollisionOption.generateUniqueName).then(function (file) {
+            return Windows.Storage.FileIO.writeBufferAsync(file, fileData);
+        });
+    });
+}
+
+/*
+function saveFileToFolder(folder, fileUrl, fileName) {
     fileExists(folder, fileName).then(function (exists) {
         if (!exists) {
             return downloadFile(fileUrl).then(function (fileData) {
@@ -1327,43 +1571,7 @@ function saveFileToFolder(folder, fileUrl, fileName) {
         }
     });
 }
-
-function downloadFileXHR(url) {
-    return new Promise(function (resolve, reject) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", url, true);
-        xhr.responseType = "arraybuffer";
-
-        xhr.onload = function () {
-            if (xhr.status === 200) {
-                resolve(xhr.response);
-            } else {
-                reject(new Error("Failed to download file: " + xhr.statusText));
-                $("#downloadbutton").html('<img src="images/download-red.png">');
-            }
-        };
-
-        xhr.onerror = function () {
-            reject(new Error("Network error during file download."));
-            $("#downloadbutton").html('<img src="images/download-red.png">');
-        };
-
-        xhr.send();
-    });
-}
-
-function saveFileToFolderFromXHR(folder, fileUrl, fileName) {
-    return downloadFileXHR(fileUrl).then(function (fileData) {
-        return folder.createFileAsync(fileName, Windows.Storage.CreationCollisionOption.generateUniqueName).then(function (file) {
-            var dataReader = Windows.Storage.Streams.DataReader.fromBuffer(Windows.Security.Cryptography.CryptographicBuffer.createFromByteArray(new Uint8Array(fileData)));
-            var buffer = new Uint8Array(fileData);
-            return Windows.Storage.FileIO.writeBytesAsync(file, buffer);
-        });
-    }, function (error) {
-        console.error("Download failed: ", error);
-        $("#downloadbutton").html('<img src="images/download-red.png">');
-    });
-}
+*/
 
 function downloadVideo (fileUrl, fileName) {
     try {
@@ -1373,6 +1581,7 @@ function downloadVideo (fileUrl, fileName) {
                 downloadFolder = selectedFolder.path;
                 localStorage.downloadfolder = downloadFolder;
                 RememberDownloadFolder(folder);
+                console.log("Downloading video to " + selectedFolder.path + " ..")
                 $("#sharetext").html("Downloading video to " + selectedFolder.path + " ..")
                 $("#downloadbutton").html('<img src="images/download-running.gif">');
                 return saveFileToFolder(folder, fileUrl, fileName);
@@ -1382,6 +1591,7 @@ function downloadVideo (fileUrl, fileName) {
                 $("#downloadbutton").html('<img src="images/download.png">');
             }
         }).then(function () {
+            console.log("Downloaded to " + selectedFolder.path)
             $("#sharetext").html("Downloaded to " + selectedFolder.path)
             $("#downloadbutton").html('<img src="images/download-blue.png">');
             setTimeout(clearSharetext, 3000)
@@ -1405,8 +1615,9 @@ $(document).ready(function () {
 
     videofile = $("#videofile")
     videofile.on("click", videoClick);
-    videofile.on("play", function () { showControls() });
-    videofile.on("pause", function () { showControls() });
+    videofile.on("play", function () { showControls(); syncAudio() });
+    videofile.on("pause", function () { showControls(); syncAudio() });
+    videofile.on("seeked", function () { showControls(); syncAudio() });
     window.addEventListener("orientationchange", function () {
         videoResize()
     });
@@ -1415,6 +1626,8 @@ $(document).ready(function () {
 
     loadSettings();
     loadSubscriptions();
-    getFeed(1);
+    showFeed();
     loadHistory();
+    loadSearchHistory();
+    setInterval(syncAudio, 10000);
 });

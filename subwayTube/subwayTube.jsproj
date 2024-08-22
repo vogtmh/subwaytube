@@ -103,6 +103,7 @@
     <Content Include="images\play.png" />
     <Content Include="images\restore.png" />
     <Content Include="images\rewind.png" />
+    <Content Include="images\search.png" />
     <Content Include="images\settings.png" />
     <Content Include="images\settings2.png" />
     <Content Include="images\SmallTile.scale-100.png" />
