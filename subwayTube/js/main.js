@@ -1024,8 +1024,97 @@ function forwardVideo() {
 }
 
 function videoResize() {
+    var orientation;
+    var videotype;
+    
     let videoheight = $("#videofile").height()
     let videowidth = $("#videofile").width()
+    let bwidth = $(window).width();
+    let bheight = $(window).height();
+    var setvideowidth;
+    var setvideoheight;
+
+    var playtop = 0;
+    var playsize = 0;
+    var seektop = 0;
+    var seeksize = 0;
+
+    if (bwidth > bheight) { orientation = 'landscape'; }
+    else { orientation = 'portrait'; }
+
+    if (videoheight > videowidth) { videotype = 'portrait'; }
+    else if (videoheight == videowidth) { videotype = 'square'; }
+    else if (videoheight < videowidth) { videotype = 'landscape'; }
+
+    console.log('orientation: ' + orientation + ', videotype: ' + videotype)
+
+    if (orientation == 'portrait') {
+        switch (videotype) {
+            case "portrait":
+                var setvideowidth = bwidth;
+                var setvideoheight = "";
+                break;
+            case "square":
+                var setvideowidth = bwidth;
+                var setvideoheight = "";
+                break;
+            case "landscape":
+                var setvideowidth = bwidth;
+                var setvideoheight = "";
+                break;
+        }
+    }
+    else if (orientation == 'landscape') {
+        switch (videotype) {
+            case "portrait":
+                var setvideowidth = "";
+                var setvideoheight = bheight;
+                break;
+            case "square":
+                var setvideowidth = "";
+                var setvideoheight = bheight;
+                break;
+            case "landscape":
+                var setvideowidth = "";
+                var setvideoheight = bheight;
+                break;
+        }
+    }
+
+    if (setvideowidth > bwidth) {
+        setvideowidth = bwidth;
+    }
+
+    if (setvideoheight > bheight) {
+        setvideoheight = bheight;
+    }
+
+    $("#videofile").height(setvideoheight);
+    $("#videofile").width(setvideowidth);
+
+    videoheight = $("#videofile").height()
+    videowidth = $("#videofile").width()
+
+    switch (videotype) {
+        case "portrait":
+            playsize = videowidth / 3;
+            seeksize = videowidth * 0.2;
+            playtop = (videoheight / 2) - (playsize / 2);
+            seektop = (videoheight / 2) - (seeksize / 2);
+            break;
+        case "square":
+            playsize = videoheight / 3;
+            seeksize = videoheight * 0.2;
+            playtop = (videoheight / 2) - (playsize / 2);
+            seektop = (videoheight / 2) - (seeksize / 2);
+            break;
+        case "landscape":
+            playsize = videoheight / 3;
+            seeksize = videoheight * 0.2;
+            playtop = (videoheight / 2) - (playsize / 2);
+            seektop = (videoheight / 2) - (seeksize / 2);
+            break;
+    }
 
     let topmargin = videoheight + 30;
     let sixteenbynine = (videowidth / 16) * 9;
@@ -1033,11 +1122,6 @@ function videoResize() {
         topmargin = (videowidth / 16) * 9 + 30;
     }
     $("#videotitle").css("margin-top", topmargin + "px")
-
-    let playtop = videoheight / 3;
-    let playsize = videoheight / 3;
-    let seektop = videoheight * 0.4;
-    let seeksize = videoheight * 0.2;
 
     $("#rewind").css("top", seektop + "px")
     $("#rewind").css("height", seeksize + "px")
