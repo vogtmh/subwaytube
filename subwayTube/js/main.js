@@ -212,7 +212,27 @@ function printFeedHeader(trycount) {
     });
 }
 
+function checkMirror() {
+    var requesturl = server + '/api/v1/stats?hl=en-US'
+    $.ajax({
+        url: requesturl,
+        type: 'GET',
+        dataType: 'json',
+        success(response) {
+            console.log('[Mirror] online')
+        },
+        error(jqXHR, status, errorThrown) {
+            console.log('[Mirror] offline')
+            if (tab == 'trending') {
+                let html = '<div style="margin-top: 2em; font-size:2em">Could not connect to server. Please choose another mirror from the settings.</div>';
+                $('#feed').html(html);
+            }
+        },
+    });
+}
+
 function getFeed(trycount) {
+    checkMirror(); 
     if (tab == 'trending') {
         printFeedHeader(trycount)
     }
@@ -499,6 +519,9 @@ function searchVideos(page, sortbydate) {
     }
 
     var searchstring = $("#searchtext").val()
+    if (searchstring == '') {
+        return;
+    }
     if (searchstring.startsWith("https://youtu.be/")) {
         searchstring = searchstring.replace('https://youtu.be/', '');
         searchstring = searchstring.split('?')[0];
@@ -598,6 +621,24 @@ function videoClick() {
     }
     else {
         showControls();
+    }
+}
+
+function videoError() {
+    if (videoActive) {
+        $("#videofile").hide();
+        $("#play").hide();
+        $("#rewind").hide();
+        $("#forward").hide();
+        $("#likebutton").hide();
+        $("#sharebutton").hide();
+        $("#downloadbutton").hide();
+        if (timeoutid) {
+            clearTimeout(timeoutid);
+        }
+        $("#closevideo").show();
+        $("#errortext").html('Could not load video. Please check your connection or try another server from the settings');
+        $("#errortext").show();
     }
 }
 
@@ -883,12 +924,14 @@ function loadSearchHistory() {
 function playVideo(id, trycount) {
     videoActive = true;
     let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US";
-    $("#videotitle").css("margin-top", "20%")
+    //$("#videotitle").css("margin-top", "20%")
     $("#videotitle").html('requesting from <br/>' + apiurl + ' (try ' + trycount + ') ..')
     console.log('requesting from ' + apiurl + ' ..')
+    $("#errortext").hide();
     $("#videoplayer").show();
     $("#videofile").hide();
     $("#loadingimage").show();
+    $("body").css("overflow-y", "hidden");
     $.ajax({
         url: apiurl,
         type: 'GET',
@@ -919,37 +962,37 @@ function playVideo(id, trycount) {
                         return false;
                     }
                 });
+                
+                // overlay title
+                let infotext = title + `<br/><span onclick='showChannel("` + authorId + `")'>` + author + '</span>';
+                
 
+                // overlay extra buttons for sharing and liking
                 let sharelink = 'https://youtu.be/' + id
                 var likeimage = '';
-
-                let infotext = title + '<br/>' + published;
-                infotext += `<table style="width:100%"><tr>
-                                <td style="width:40%" onclick='showChannel("` + authorId + `")'><img src="` + authorThumbnail + `"  /><br/>` + author + `</td>
-                                `;
-
                 if (isSubscribed(authorId)) {
                     likeimage = 'images/heart-filled-red.png';
                 }
                 else {
                     likeimage = 'images/heart-empty.png';
                 }
-                infotext += `<td><div id="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td>`;
+                let extrabuttons = `<table style="width:100%; height:100%;"><tr>`;
+                extrabuttons += `<td><div id="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td></tr>`;
                 let videourl = stream.url;
                 var downloadurl = response.formatStreams[0].url;
                 let videoname = (title + '.mp4').replace(/['/\\?%*:|"<>]+/g, '-')
 
-                infotext += `<td style="width:20%"><div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div></td>
-                             <td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `")'><img src="images/download.png"></div></td>`;
-                infotext += `</tr></table>`;
-                infotext += '<div id="sharetext"></div>'
+                extrabuttons += `<tr><td style="width:20%"><div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div></td></tr>
+                             <tr><td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `")'><img src="images/download.png"></div></td></tr>`;
+                extrabuttons += `</table>`;
 
                 if (videoActive) {
                     $('#videofile').attr('src', stream.url);
                     $('#audiofile').attr('src', audiostream.url);
                     $("#loadingimage").hide();
 
-                    $("#videotitle").html(infotext)
+                    $("#videotitle").html(infotext);
+                    $("#extrabuttons").html(extrabuttons);
                     videoResize()
                     $("#videofile").show();
                     var image = '';
@@ -990,43 +1033,10 @@ function playVideo(id, trycount) {
     });
 }
 
-function rewindVideo() {
-    showControls()
-    var video = document.getElementById("videofile");
-    video.currentTime -= 15;
-}
-
-function toggleVideo() {
-    showControls()
-    let video = document.getElementById("videofile");
-    let audio = document.getElementById("audiofile");
-
-    if (video.paused) {
-        video.play();
-        if (streamquality != '360p') {
-            audio.play();
-        }
-        $("#pause").show();
-        $("#play").hide();
-    }
-    else {
-        video.pause();
-        audio.pause();
-        $("#play").show();
-        $("#pause").hide();
-    }
-}
-
-function forwardVideo() {
-    showControls()
-    var video = document.getElementById("videofile");
-    video.currentTime += 15;
-}
-
 function videoResize() {
     var orientation;
     var videotype;
-    
+
     let videoheight = $("#videofile").height()
     let videowidth = $("#videofile").width()
     let bwidth = $(window).width();
@@ -1046,13 +1056,13 @@ function videoResize() {
     else if (videoheight == videowidth) { videotype = 'square'; }
     else if (videoheight < videowidth) { videotype = 'landscape'; }
 
-    console.log('orientation: ' + orientation + ', videotype: ' + videotype)
+    //console.log('orientation: ' + orientation + ', videotype: ' + videotype)
 
     if (orientation == 'portrait') {
         switch (videotype) {
             case "portrait":
-                var setvideowidth = bwidth;
-                var setvideoheight = "";
+                var setvideowidth = "";
+                var setvideoheight = bheight;
                 break;
             case "square":
                 var setvideowidth = bwidth;
@@ -1097,31 +1107,38 @@ function videoResize() {
 
     switch (videotype) {
         case "portrait":
-            playsize = videowidth / 3;
-            seeksize = videowidth * 0.2;
+            playsize = videowidth / 4;
+            seeksize = videowidth * 0.15;
+            extrasize = videowidth * 0.05;
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
+            extratop = (videoheight * 0.25);
             break;
         case "square":
             playsize = videoheight / 3;
             seeksize = videoheight * 0.2;
+            extrasize = videoheight * 0.05;
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
+            extratop = (videoheight * 0.25);
             break;
         case "landscape":
             playsize = videoheight / 3;
             seeksize = videoheight * 0.2;
+            extrasize = videoheight * 0.05;
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
+            extratop = (videoheight * 0.25);
             break;
     }
 
-    let topmargin = videoheight + 30;
+    //let topmargin = videoheight + 30;
     let sixteenbynine = (videowidth / 16) * 9;
     if (sixteenbynine > videoheight) {
         topmargin = (videowidth / 16) * 9 + 30;
     }
-    $("#videotitle").css("margin-top", topmargin + "px")
+
+    //$("#videotitle").css("margin-top", topmargin + "px")
 
     $("#rewind").css("top", seektop + "px")
     $("#rewind").css("height", seeksize + "px")
@@ -1142,12 +1159,63 @@ function videoResize() {
     $("#forward").css("height", seeksize + "px")
     $("#forward").css("width", seeksize + "px")
     $("#forward").css("margin-right", (seeksize / 2 * -1) + "px")
+
+    $("#extrabuttons").css("height", (videoheight/2) + "px")
+    $("#extrabuttons").css("width", extrasize + "px")
+    $("#extrabuttons").css("top", extratop + "px")
+    $("#likebutton").css("width", extrasize + "px")
+    $("#sharebutton").css("width", extrasize + "px")
+    $("#downloadbutton").css("width", extrasize + "px")
+    $("#likebutton").css("height", extrasize + "px")
+    $("#sharebutton").css("height", extrasize + "px")
+    $("#downloadbutton").css("height", extrasize + "px")
+
+    $("#closevideo").css("height", extrasize + "px")
+    $("#closevideo").css("width", extrasize + "px")
+    $("#closevideo").css("line-height", extrasize + "px")
+}
+
+function rewindVideo() {
+    showControls()
+    var video = document.getElementById("videofile");
+    video.currentTime -= 15;
+}
+
+function toggleVideo() {
+    showControls()
+    let video = document.getElementById("videofile");
+    let audio = document.getElementById("audiofile");
+
+    if (video.paused) {
+        video.play();
+        if (streamquality != '360p') {
+            audio.play();
+        }
+        $("#pause").show();
+        $("#play").hide();
+    }
+    else {
+        video.pause();
+        audio.pause();
+        $("#play").show();
+        $("#pause").hide();
+    }
+}
+
+function forwardVideo() {
+    showControls()
+    var video = document.getElementById("videofile");
+    video.currentTime += 15;
 }
 
 function closeVideoplayer() {
+    $("body").css("overflow-y", "visible");
+    hideControls();
     $("#videoplayer").hide();
     $('#videofile').attr('src', '');
     $('#audiofile').attr('src', '');
+    $("#videofile").height("");
+    $("#videofile").width("100%");
     $("#videotitle").html('')
     videoActive = false;
 }
@@ -1169,8 +1237,8 @@ function showControls() {
         else {
             $("#pause").show();
             $("#play").hide();
-        }
-        timeoutid = setTimeout(hideControls, 3000);
+            timeoutid = setTimeout(hideControls, 3000);
+        }   
     }
     else {
         closeVideoplayer();
@@ -1699,10 +1767,14 @@ $(document).ready(function () {
 
     videofile = $("#videofile")
     videofile.on("click", videoClick);
+    videofile.on("error", videoError);
     videofile.on("play", function () { showControls(); syncAudio() });
     videofile.on("pause", function () { showControls(); syncAudio() });
     videofile.on("seeked", function () { showControls(); syncAudio() });
     window.addEventListener("orientationchange", function () {
+        videoResize()
+    });
+    window.addEventListener("resize", function () {
         videoResize()
     });
     videofile.on("touchmove", showControls);
