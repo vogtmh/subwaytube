@@ -359,7 +359,8 @@ function addChannelToFeed(channelId, mode, index) {
                 var element = latest[i];
                 let published = element.published;
                 let publishedText = element.publishedText;
-                if (publishedText != '0 seconds ago') {
+                let type = element.type;
+                if (type != 'scheduled' && type != 'livestream' && publishedText != '0 seconds ago') {
                     let title = element.title;
                     var image = '';
                     $.each(element.videoThumbnails, function (i, thumbnail) {
@@ -557,7 +558,7 @@ function searchVideos(page, sortbydate) {
                 var element = response[i];
                 let type = element.type;
                 let published = element.publishedText;
-                if (type != 'livestream' && type != 'playlist' && published != '0 seconds ago') {
+                if (type != 'livestream' && type != 'playlist' && type != 'scheduled' && published != '0 seconds ago') {
                     if (type == 'channel') {
                         let title = element.author;
                         let authorId = element.authorId;
