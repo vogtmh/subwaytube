@@ -117,7 +117,6 @@ a:hover {
     width: 25%;
     float: right;
     height: 38px;
-    margin-top: 8px;
     font-size: 16px;
     line-height: 38px;
     text-align: center;
@@ -284,17 +283,34 @@ a:hover {
     display:none;
 }
 
+#channelimage {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    background-color: #000;
+    opacity: 0.8;
+    cursor:pointer;
+}
+
+#channelimage img {
+    width: 100%;
+    height: 100%;
+}
+
+#channelimage:hover {
+    opacity: 1.0;
+}
+
 #videotitle {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    padding: 5px;
+    top: 0px;
+    left: 0px;
     background-color: #000;
     opacity: 0.8;
     font-size: 12px;
     text-align: left;
     font-weight: bold;
-    margin-right: 80px;
+    padding-left:10px;
 }
 
 #extrabuttons {
@@ -404,18 +420,19 @@ a:hover {
 
 #closevideo {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: 0px;
+    right: 0px;
     width: 40px;
     height: 40px;
     line-height: 40px;
     display: none;
     opacity: 0.6;
     background-color: Highlight;
-    padding: 10px;
-    border: 2px solid white;
-    border-radius: 50%;
     font-weight: bold;
+}
+
+#closevideo:hover {
+    opacity: 1.0;
 }
 
 #sharelink {
@@ -433,10 +450,15 @@ a:hover {
     padding: 10px;
     border: 2px solid white;
     border-radius: 50%;
+    opacity: 0.8;
 }
 
 #sharebutton img {
     height: 100%;
+}
+
+#sharebutton:hover {
+    opacity: 1.0;
 }
 
 #sharetext {
@@ -454,10 +476,15 @@ a:hover {
     padding: 10px;
     border: 2px solid white;
     border-radius: 50%;
+    opacity: 0.8;
 }
 
 #likebutton img {
     height: 100%;
+}
+
+#likebutton:hover {
+    opacity: 1.0;
 }
 
 #downloadbutton {
@@ -468,10 +495,15 @@ a:hover {
     padding: 10px;
     border: 2px solid white;
     border-radius: 50%;
+    opacity: 0.8;
 }
 
 #downloadbutton img {
     height: 100%;
+}
+
+#downloadbutton:hover {
+    opacity: 1.0;
 }
 
 #settingsmenu {

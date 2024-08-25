@@ -963,9 +963,12 @@ function playVideo(id, trycount) {
                         return false;
                     }
                 });
-                
+
+                // channelimage
+                let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
+
                 // overlay title
-                let infotext = title + `<br/><span onclick='showChannel("` + authorId + `")'>` + author + '</span>';
+                let infotext = title + `<br/>` + author;
                 
 
                 // overlay extra buttons for sharing and liking
@@ -992,6 +995,7 @@ function playVideo(id, trycount) {
                     $('#audiofile').attr('src', audiostream.url);
                     $("#loadingimage").hide();
 
+                    $("#channelimage").html(channelimage);
                     $("#videotitle").html(infotext);
                     $("#extrabuttons").html(extrabuttons);
                     videoResize()
@@ -1171,9 +1175,17 @@ function videoResize() {
     $("#sharebutton").css("height", extrasize + "px")
     $("#downloadbutton").css("height", extrasize + "px")
 
-    $("#closevideo").css("height", extrasize + "px")
-    $("#closevideo").css("width", extrasize + "px")
-    $("#closevideo").css("line-height", extrasize + "px")
+    $("#channelimage").css("height", (extrasize * 3) + "px")
+    $("#channelimage").css("width", (extrasize * 3) + "px")
+
+    $("#videotitle").css("left", (extrasize * 3) + "px")
+    $("#videotitle").css("height", (extrasize * 3) + "px")
+    $("#videotitle").css("right", (extrasize * 3) + "px")
+    $("#videotitle").css("font-size", (extrasize / 1.5 ) + "px")
+
+    $("#closevideo").css("height", (extrasize * 3) + "px")
+    $("#closevideo").css("width", (extrasize * 3) + "px")
+    $("#closevideo").css("line-height", (extrasize * 3) + "px")
 }
 
 function rewindVideo() {
