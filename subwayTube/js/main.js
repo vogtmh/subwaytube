@@ -9,6 +9,7 @@ var tab = 'trending';
 var selectedFolder;
 var downloadFolder;
 var videoActive = false;
+var fullscreenVideo = false;
 var channelFeed = []
 let touchstartY = 0;
 let refreshindex = 0;
@@ -1186,6 +1187,12 @@ function videoResize() {
     $("#closevideo").css("height", (extrasize * 3) + "px")
     $("#closevideo").css("width", (extrasize * 3) + "px")
     $("#closevideo").css("line-height", (extrasize * 3) + "px")
+    $("#closevideo").css("font-size", (extrasize) + "px")
+
+    $("#seekarea").css("height", (extrasize * 2) + "px");
+    $("#seekarea").css("top", (videoheight - (extrasize * 2)) + "px")
+    $("#seektext").css("line-height", (extrasize * 2) + "px")
+    $("#seektext").css("font-size", (extrasize) + "px")
 }
 
 function rewindVideo() {
@@ -1231,6 +1238,53 @@ function closeVideoplayer() {
     $("#videofile").width("100%");
     $("#videotitle").html('')
     videoActive = false;
+}
+
+function formatDuration(seconds) {
+    seconds = Math.round(seconds);
+    let hours = 0;
+    let minutes = 0;
+    var output;
+
+    if (seconds > 3600) {
+        hours = Math.floor(seconds / 3600);
+        seconds = seconds - (hours * 3600);
+    }
+    if (seconds > 60) {
+        minutes = Math.floor(seconds / 60);
+        seconds = seconds - (minutes * 60);
+    }
+
+    if (hours < 10) {
+        hours = "0" + hours;
+    }
+    if (minutes < 10) {
+        minutes = "0" + minutes;
+    }
+    if (seconds < 10) {
+        seconds = "0" + seconds;
+    }
+ 
+    if (hours == "00") {
+        output = minutes + ":" + seconds;
+    } else {
+        output = hours + ":" + minutes + ":" + seconds;
+    }
+    return output;
+}
+
+function updateProgressBar() {
+    let video = document.getElementById("videofile");
+    var percentage = (100 / video.duration) * video.currentTime;
+    $("#seekprogress").css("width", percentage + "%");
+    let timePassed = formatDuration(video.currentTime);
+    $("#seektext").html(timePassed)
+}
+
+function seekClick(e) {
+    let video = document.getElementById("videofile");
+    let percent = e.offsetX / this.offsetWidth;
+    video.currentTime = percent * video.duration;
 }
 
 function showControls() {
@@ -1628,11 +1682,24 @@ function applySettings() {
     showServerstats()
 }
 
+function fullscreenChanged(event) {
+    try {
+        fullscreenVideo = Windows.UI.ViewManagement.ApplicationView.getForCurrentView().isFullScreenMode;
+    }
+    catch (e) {
+        fullscreenVideo = false;
+    }
+}
+
 // prevents that each back button press will suspend the app
 function onBackPressed(event) {
     var navfeed_color = $("#nav_feed").css("background-color");
 
-    if ($('#videoplayer:visible').length > 0) {
+    if (fullscreenVideo == true) {
+        closeVideoplayer();
+        event.handled = true;
+    }
+    else if ($('#videoplayer:visible').length > 0) {
         closeVideoplayer();
         event.handled = true;
     }
@@ -1791,6 +1858,12 @@ $(document).ready(function () {
         videoResize()
     });
     videofile.on("touchmove", showControls);
+    videofile.on('fullscreenchange webkitfullscreenchange mozfullscreenchange', fullscreenChanged);
+    videofile.on("timeupdate", updateProgressBar);
+
+    let seekArea = $("#seekarea")
+    seekArea.on("click", seekClick);
+
     document.onselectstart = new Function("return false")
 
     loadSettings();

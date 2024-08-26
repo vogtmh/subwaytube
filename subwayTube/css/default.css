@@ -418,6 +418,37 @@ a:hover {
     height: 100%;
 }
 
+#seekarea {
+    position: absolute;
+    width: 100%;
+    opacity: 0.8;
+    background-color: #333;
+    display: none;
+}
+
+#seekarea:hover {
+    opacity: 1.0;
+}
+
+#seekprogress {
+    position:absolute;
+    height: 100%;
+    width: 0%;
+    background-color: Highlight;
+    opacity: 0.8;
+}
+
+#seekprogress:hover {
+    opacity: 1.0;
+}
+
+#seektext {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    cursor: pointer;
+}
+
 #closevideo {
     position: absolute;
     top: 0px;
