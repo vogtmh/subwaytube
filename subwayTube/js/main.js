@@ -12,6 +12,7 @@ var videoActive = false;
 var fullscreenVideo = false;
 var channelFeed = []
 let touchstartY = 0;
+let seekX = 0;
 let refreshindex = 0;
 let feedcontent = '';
 let feedtimestamp = (new Date).getTime();
@@ -1287,6 +1288,32 @@ function seekClick(e) {
     video.currentTime = percent * video.duration;
 }
 
+function seekStart(e) {
+    seekX = e.touches[0].clientX;
+}
+
+function seekMove(e) {
+    showControls()
+    seekX = e.touches[0].clientX;
+    let divWidth = this.offsetWidth;
+    if (seekX > divWidth) {
+        seekX = divWidth;
+    }
+    let percent = 100 * seekX / divWidth;
+    $("#seekprogress").css("width", percent + "%")
+    console.log(percent + "%")
+}
+
+function seekEnd(e) {
+    let video = document.getElementById("videofile");
+    let divWidth = this.offsetWidth;
+    if (seekX > divWidth) {
+        seekX = divWidth;
+    }
+    let multiplier = seekX / divWidth;
+    video.currentTime = multiplier * video.duration;
+}
+
 function showControls() {
     videoResize()
 
@@ -1863,6 +1890,9 @@ $(document).ready(function () {
 
     let seekArea = $("#seekarea")
     seekArea.on("click", seekClick);
+    seekArea.on("touchstart", seekStart);
+    seekArea.on("touchmove", seekMove);
+    seekArea.on("touchend", seekEnd);
 
     document.onselectstart = new Function("return false")
 
