@@ -5,6 +5,7 @@ var timeoutid;
 var subscriptions = [];
 var playhistory = [];
 var searchhistory = [];
+var downloadhistory = [];
 var tab = 'trending';
 var selectedFolder;
 var downloadFolder;
@@ -450,6 +451,7 @@ function getFavorites() {
                   <div id="favtablist">
                     <div id="favorites_channels" class="favtab" onclick="getFavorites()" style="background-color:Highlight">Channels</div>
                     <div id="favorites_history" class="favtab" onclick="getHistory()">History</div>
+                    <div id="favorites_downloads" class="favtab" onclick="getDownloads()">Downloads</div>
                   </div>`
 
     if (subscriptions.length > 0) {
@@ -482,6 +484,7 @@ function getHistory() {
                   <div id="favtablist">
                     <div id="favorites_channels" class="favtab" onclick="getFavorites()">Channels</div>
                     <div id="favorites_history" class="favtab" onclick="getHistory()" style="background-color:Highlight">History</div>
+                    <div id="favorites_downloads" class="favtab" onclick="getDownloads()">Downloads</div>
                   </div>`
 
     if (playhistory.length > 0) {
@@ -712,6 +715,74 @@ function addSearchhistoryItem(query) {
     localStorage.searchhistory = JSON.stringify(searchhistory);
 }
 
+function getDownloads() {
+    tab = 'favorites';
+    $(".navbutton").css("background-color", "#111");
+    $("#nav_favourites").css("background-color", "Highlight");
+    var output = `<div id="tabheader">Favorites</div>
+                  <div id="favtablist">
+                    <div id="favorites_channels" class="favtab" onclick="getFavorites()">Channels</div>
+                    <div id="favorites_history" class="favtab" onclick="getHistory()">History</div>
+                    <div id="favorites_downloads" class="favtab" onclick="getDownloads()" style="background-color:Highlight">Downloads</div>
+                  </div>`
+
+    // Prepare empty containers for the printDownload function later
+    if (downloadhistory.length > 0) {
+        for (var h = (downloadhistory.length - 1); h > -1; h--) {
+            divid = "download" + h;
+            output += `<div id="` + divid + `"></div>`;
+        }
+    }
+    else {
+        output += '<table style="text-align: left; width: 100%;">';
+        output += '<tr><td>No videos downloaded yet</td></tr>';
+    }
+    output += '<div id="spacer"></div>'
+    if (tab == 'favorites') {
+        $('#content').html(output);
+
+        for (var h = 0; h < downloadhistory.length; h++) {
+            divid = "download" + h;
+            output += `<div id="` + divid + `"></div>`;
+            let downloaditem = downloadhistory[h]
+            let videoFile = downloaditem.videoFile;
+            let name = downloaditem.name;
+            let author = downloaditem.author;
+            let authorId = downloaditem.authorId;
+            let image = downloaditem.image;
+
+            printDownload(videoFile, name, author, authorId, image, "#"+divid);
+        }
+
+        applySizing();
+        window.scrollTo(0, 0);
+    }
+}
+
+function addDownloadhistoryItem(videoFile, name, image, author, authorId, authorThumbnail) {
+    var newDownloadHistory = []
+    for (var h = 0; h < downloadhistory.length; h++) {
+        let downloaditem = downloadhistory[h]
+        let downloadname = downloaditem.name;
+        if (name != downloadname) {
+            newDownloadHistory.push(downloaditem);
+        }
+    }
+
+    var history_json = {
+        "videoFile": videoFile,
+        "name": name,
+        "image": image,
+        "author": author,
+        "authorId": authorId,
+        "authorThumbnail": authorThumbnail
+    };
+    newDownloadHistory.push(history_json);
+
+    downloadhistory = newDownloadHistory;
+    localStorage.downloadhistory = JSON.stringify(downloadhistory);
+}
+
 function clearHistory() {
     playhistory = [];
     searchhistory = [];
@@ -924,6 +995,19 @@ function loadSearchHistory() {
     }
 }
 
+function loadDownloadHistory() {
+    //var empty = []
+    //localStorage.downloadhistory = JSON.stringify(empty);
+    if (localStorage.getItem("downloadhistory") === null) {
+        console.log('[Download History] no items in downloads yet')
+    } else {
+        downloadhistory = JSON.parse(localStorage.downloadhistory);
+        downloadhistorycount = downloadhistory.length;
+
+        console.log('[Download History] ' + downloadhistorycount + ' items in downloads loaded')
+    }
+}
+
 function playVideo(id, trycount) {
     videoActive = true;
     let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US";
@@ -987,9 +1071,17 @@ function playVideo(id, trycount) {
                 let videourl = stream.url;
                 var downloadurl = response.formatStreams[0].url;
                 let videoname = (title + '.mp4').replace(/['/\\?%*:|"<>]+/g, '-')
+                let name = title.replace(/['/\\?%*:|"<>]+/g, '-')
+
+                $.each(response.videoThumbnails, function (i, thumbnail) {
+                    if (thumbnail.quality == "medium") {
+                        image = thumbnail.url;
+                        return false; // stops the loop
+                    }
+                });
 
                 extrabuttons += `<tr><td style="width:20%"><div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div></td></tr>
-                             <tr><td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `")'><img src="images/download.png"></div></td></tr>`;
+                             <tr><td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `","` + name + `","` + image + `","` + author + `","` + authorId + `","` + authorThumbnail + `")'><img src="images/download.png"></div></td></tr>`;
                 extrabuttons += `</table>`;
 
                 if (videoActive) {
@@ -1003,12 +1095,7 @@ function playVideo(id, trycount) {
                     videoResize()
                     $("#videofile").show();
                     var image = '';
-                    $.each(response.videoThumbnails, function (i, thumbnail) {
-                        if (thumbnail.quality == "medium") {
-                            image = thumbnail.url;
-                            return false; // stops the loop
-                        }
-                    });
+                    
                     addHistoryItem(id, title, image, authorId, author);
                 }
                 
@@ -1122,8 +1209,8 @@ function videoResize() {
             extratop = (videoheight * 0.25);
             break;
         case "square":
-            playsize = videoheight / 3;
-            seeksize = videoheight * 0.2;
+            playsize = videoheight / 4;
+            seeksize = videoheight * 0.15;
             extrasize = videoheight * 0.05;
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
@@ -1301,7 +1388,6 @@ function seekMove(e) {
     }
     let percent = 100 * seekX / divWidth;
     $("#seekprogress").css("width", percent + "%")
-    console.log(percent + "%")
 }
 
 function seekEnd(e) {
@@ -1570,10 +1656,43 @@ function showSettings() {
                   </div>`
     if (tab == 'settings') {
         $('#content').html(output);
+        //getDownloads();
     }
 
     getServerlist()
     getStreamquality()
+}
+
+function checkFile(fileName, divName) {
+    selectFolder().then(function (folder) {
+        folder.tryGetItemAsync(fileName).then(function (testFile) {
+            if (testFile !== null) {
+                console.log(fileName + ': exists');
+                $(divName).html(fileName + ': exists')
+                return true
+            }
+            else {
+                console.log(fileName + ': file not found');
+                $(divName).html(fileName + ': file not found')
+                return false
+            }
+        });
+    });
+}
+
+function printDownload(fileName, name, author, authorId, image, divName) {
+    selectFolder().then(function (folder) {
+        folder.tryGetItemAsync(fileName).then(function (testFile) {
+            if (testFile !== null) {
+                var html = `<div class="videoitem" onclick='playDownload("` + fileName + `")' style="width: 100%; font-size: 16px;">
+                            <img src="`+ image + `"><div class="videoinfo" style="height: 3em;">` + name + `<br/>` + author + `</div></div>`;
+                $(divName).html(html)
+            }
+            else {
+                $(divName).html("")
+            }
+        });
+    });
 }
 
 function getStreamquality() {
@@ -1832,7 +1951,8 @@ function saveFileToFolder(folder, fileUrl, fileName) {
 }
 */
 
-function downloadVideo (fileUrl, fileName) {
+function downloadVideo(fileUrl, fileName, name, image, author, authorId, authorThumbnail) {
+    addDownloadhistoryItem(fileName, name, image, author, authorId, authorThumbnail)
     try {
         selectFolder().then(function (folder) {
             if (folder) {
@@ -1901,5 +2021,6 @@ $(document).ready(function () {
     showFeed();
     loadHistory();
     loadSearchHistory();
+    loadDownloadHistory();
     setInterval(syncAudio, 10000);
 });
