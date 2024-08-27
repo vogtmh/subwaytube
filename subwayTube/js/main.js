@@ -10,7 +10,7 @@ var tab = 'trending';
 var selectedFolder;
 var downloadFolder;
 var videoActive = false;
-var fullscreenVideo = false;
+var videoLocation = 'remote';
 var channelFeed = []
 let touchstartY = 0;
 let seekX = 0;
@@ -52,11 +52,21 @@ function sortByKey_inverse(array, key) {
 function shortStr(string) {
     let length = 60;
     let out = string;
-    if (string.length > 50) {
+    if (string.length > 60) {
         out = string.substring(0, length) + '..'
     }
     
     return out; 
+}
+
+function microStr(string) {
+    let length = 40;
+    let out = string;
+    if (string.length > 40) {
+        out = string.substring(0, length) + '..'
+    }
+
+    return out;
 }
 
 // load basic app settings or apply defaults
@@ -531,10 +541,14 @@ function searchVideos(page, sortbydate) {
     if (searchstring.startsWith("https://youtu.be/")) {
         searchstring = searchstring.replace('https://youtu.be/', '');
         searchstring = searchstring.split('?')[0];
+        playVideo(searchstring, 1);
+        return
     }
     if (searchstring.startsWith("https://www.youtube.com/watch?v=")) {
         searchstring = searchstring.replace('https://www.youtube.com/watch?v=', '');
         searchstring = searchstring.split('&')[0];
+        playVideo(searchstring, 1);
+        return
     }
     $("#searchtext").val(searchstring)
     addSearchhistoryItem(searchstring);
@@ -750,8 +764,9 @@ function getDownloads() {
             let author = downloaditem.author;
             let authorId = downloaditem.authorId;
             let image = downloaditem.image;
+            let authorThumbnail = downloaditem.authorThumbnail;
 
-            printDownload(videoFile, name, author, authorId, image, "#"+divid);
+            printDownload(videoFile, name, image, author, authorId, authorThumbnail, "#"+divid);
         }
 
         applySizing();
@@ -781,6 +796,46 @@ function addDownloadhistoryItem(videoFile, name, image, author, authorId, author
 
     downloadhistory = newDownloadHistory;
     localStorage.downloadhistory = JSON.stringify(downloadhistory);
+}
+
+function removeDownload(fileName) {
+    selectFolder().then(function (folder) {
+        folder.tryGetItemAsync(fileName).then(function (testFile) {
+            if (testFile !== null) {
+                testFile.deleteAsync();
+            }
+        });
+    });
+    var newdownloads = [];
+    for (var d = 0; d < downloadhistory.length; d++) {
+        let videoFile = downloadhistory[d].videoFile;
+        let name = downloadhistory[d].name;
+        let image = downloadhistory[d].image;
+        let author = downloadhistory[d].author;
+        let authorId = downloadhistory[d].authorId;
+        let authorThumbnail = downloadhistory[d].authorThumbnail;
+
+        if (videoFile == fileName) {
+            console.log('[Downloads] ' + fileName + ' found, removing..')
+        }
+        else {
+            var download_json = {
+                "videoFile": videoFile,
+                "name": name,
+                "image": image,
+                "author": author,
+                "authorId": authorId,
+                "authorThumbnail": authorThumbnail
+            };
+            newdownloads.push(download_json);
+        }
+    }
+
+    downloadhistory = newdownloads;
+    localStorage.downloadhistory = JSON.stringify(newdownloads);
+
+    loadDownloadHistory()
+    getDownloads()
 }
 
 function clearHistory() {
@@ -852,8 +907,12 @@ function removeChannel(removeId, origin) {
             console.log('[Channels] ' + author + ' found, removing..')
         }
         else {
-            let channelarray = [authorId, author, authorThumbnail];
-            newsubscriptions.push(channelarray);
+            var channel_json = {
+                "authorId": authorId,
+                "author": author,
+                "image": authorThumbnail
+            };
+            newsubscriptions.push(channel_json);
         }
     }
 
@@ -1010,6 +1069,7 @@ function loadDownloadHistory() {
 
 function playVideo(id, trycount) {
     videoActive = true;
+    videoLocation = 'remote';
     let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US";
     //$("#videotitle").css("margin-top", "20%")
     $("#videotitle").html('requesting from <br/>' + apiurl + ' (try ' + trycount + ') ..')
@@ -1070,9 +1130,10 @@ function playVideo(id, trycount) {
                 extrabuttons += `<td><div id="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td></tr>`;
                 let videourl = stream.url;
                 var downloadurl = response.formatStreams[0].url;
-                let videoname = (title + '.mp4').replace(/['/\\?%*:|"<>]+/g, '-')
-                let name = title.replace(/['/\\?%*:|"<>]+/g, '-')
+                let videoname = (title + '.mp4').replace(/['/\\?#%*:|"<>]+/g, '-')
+                let name = title.replace(/['/\\?#%*:|"<>]+/g, '-')
 
+                var image = '';
                 $.each(response.videoThumbnails, function (i, thumbnail) {
                     if (thumbnail.quality == "medium") {
                         image = thumbnail.url;
@@ -1094,7 +1155,6 @@ function playVideo(id, trycount) {
                     $("#extrabuttons").html(extrabuttons);
                     videoResize()
                     $("#videofile").show();
-                    var image = '';
                     
                     addHistoryItem(id, title, image, authorId, author);
                 }
@@ -1124,6 +1184,62 @@ function playVideo(id, trycount) {
                 }
             }
         },
+    });
+}
+
+function playDownload(fileName, title, author, authorId, authorThumbnail) {
+    console.log(authorThumbnail);
+    videoActive = true;
+    videoLocation = 'local';
+
+    let downloadPath = downloadFolder.replace(/\\/g, "/");
+    let videosource = downloadFolder + '\\' + fileName;
+    //let videosource = 'file:///' + downloadPath + '/' + fileName;
+    
+    
+    $("#errortext").hide();
+    $("#videoplayer").show();
+    $("#videofile").hide();
+    $("body").css("overflow-y", "hidden");    
+
+    // channelimage
+    let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
+
+    // overlay title
+    let infotext = title + `<br/>` + author;
+
+    // overlay extra buttons for sharing and liking
+    let sharelink = ''
+    var likeimage = '';
+
+    let extrabuttons = `<div id="likebutton"><img src="images/play.png"></div>
+                        <div id="sharebutton"><img src="images/play.png"></div>
+                        <div id="downloadbutton")'><img src="images/play.png"></div>`;
+    if (videoActive) {
+        try {
+            Windows.Storage.StorageFile.getFileFromPathAsync(videosource).then(function (file) {
+                loadLocalVideo(file);
+            })
+        }
+        catch (error) {
+            console.log("Error accessing file: " + error.message);
+        };
+        
+        console.log(videosource);
+        $("#loadingimage").hide();
+        $("#channelimage").html(channelimage);
+        $("#videotitle").html(infotext);
+        $("#extrabuttons").html(extrabuttons);
+        videoResize()
+        $("#videofile").show();
+    }
+
+}
+
+function loadLocalVideo(file) {
+    var videoElement = document.getElementById("videofile");
+    file.openAsync(Windows.Storage.FileAccessMode.read).then(function (stream) {
+        videoElement.src = URL.createObjectURL(stream, { oneTimeOnly: true });
     });
 }
 
@@ -1254,15 +1370,20 @@ function videoResize() {
     $("#forward").css("width", seeksize + "px")
     $("#forward").css("margin-right", (seeksize / 2 * -1) + "px")
 
-    $("#extrabuttons").css("height", (videoheight/2) + "px")
-    $("#extrabuttons").css("width", extrasize + "px")
-    $("#extrabuttons").css("top", extratop + "px")
-    $("#likebutton").css("width", extrasize + "px")
-    $("#sharebutton").css("width", extrasize + "px")
-    $("#downloadbutton").css("width", extrasize + "px")
-    $("#likebutton").css("height", extrasize + "px")
-    $("#sharebutton").css("height", extrasize + "px")
-    $("#downloadbutton").css("height", extrasize + "px")
+    if (videoLocation == 'local') {
+        $("#extrabuttons").hide();
+    }
+    else {
+        $("#extrabuttons").css("height", (videoheight / 2) + "px")
+        $("#extrabuttons").css("width", extrasize + "px")
+        $("#extrabuttons").css("top", extratop + "px")
+        $("#likebutton").css("width", extrasize + "px")
+        $("#sharebutton").css("width", extrasize + "px")
+        $("#downloadbutton").css("width", extrasize + "px")
+        $("#likebutton").css("height", extrasize + "px")
+        $("#sharebutton").css("height", extrasize + "px")
+        $("#downloadbutton").css("height", extrasize + "px")
+    }
 
     $("#channelimage").css("height", (extrasize * 3) + "px")
     $("#channelimage").css("width", (extrasize * 3) + "px")
@@ -1407,6 +1528,9 @@ function showControls() {
         let video = document.getElementById("videofile");
 
         $(".videocontrols").show();
+        if (videoLocation == 'local') {
+            $("#extrabuttons").hide();
+        }
         if (timeoutid) {
             clearTimeout(timeoutid);
         }
@@ -1680,13 +1804,16 @@ function checkFile(fileName, divName) {
     });
 }
 
-function printDownload(fileName, name, author, authorId, image, divName) {
+function printDownload(fileName, name, image, author, authorId, authorThumbnail, divName) {
     selectFolder().then(function (folder) {
         folder.tryGetItemAsync(fileName).then(function (testFile) {
             if (testFile !== null) {
-                var html = `<div class="videoitem" onclick='playDownload("` + fileName + `")' style="width: 100%; font-size: 16px;">
-                            <img src="`+ image + `"><div class="videoinfo" style="height: 3em;">` + name + `<br/>` + author + `</div></div>`;
+                var html = `<div class="videoitem" style="width: 100%; font-size: 16px;">
+                            <img src="`+ image + `" onclick='playDownload("` + fileName + `", "` + name + `", "` + author + `", "` + authorId + `", "` + authorThumbnail +`")' />
+                            <div class="videoinfo" style="height: 3em;"><table style="width:100%;height:100%;"><tr><td style="width:90%" onclick='playDownload("` + fileName + `", "` + name + `", "` + author + `", "` + authorId + `", "` + authorThumbnail +`")'>` + microStr(name) + `<br/>` + author + `</td><td style="width:10%;background-color:Highlight" onclick='removeDownload("`+fileName+`")'>X</td></tr></table></div>
+                            </div>`;
                 $(divName).html(html)
+                applySizing();
             }
             else {
                 $(divName).html("")
@@ -1828,24 +1955,11 @@ function applySettings() {
     showServerstats()
 }
 
-function fullscreenChanged(event) {
-    try {
-        fullscreenVideo = Windows.UI.ViewManagement.ApplicationView.getForCurrentView().isFullScreenMode;
-    }
-    catch (e) {
-        fullscreenVideo = false;
-    }
-}
-
 // prevents that each back button press will suspend the app
 function onBackPressed(event) {
     var navfeed_color = $("#nav_feed").css("background-color");
 
-    if (fullscreenVideo == true) {
-        closeVideoplayer();
-        event.handled = true;
-    }
-    else if ($('#videoplayer:visible').length > 0) {
+    if ($('#videoplayer:visible').length > 0) {
         closeVideoplayer();
         event.handled = true;
     }
@@ -1952,6 +2066,7 @@ function saveFileToFolder(folder, fileUrl, fileName) {
 */
 
 function downloadVideo(fileUrl, fileName, name, image, author, authorId, authorThumbnail) {
+    fileName = fileName.replace(/ /g, "_");
     addDownloadhistoryItem(fileName, name, image, author, authorId, authorThumbnail)
     try {
         selectFolder().then(function (folder) {
@@ -2005,7 +2120,6 @@ $(document).ready(function () {
         videoResize()
     });
     videofile.on("touchmove", showControls);
-    videofile.on('fullscreenchange webkitfullscreenchange mozfullscreenchange', fullscreenChanged);
     videofile.on("timeupdate", updateProgressBar);
 
     let seekArea = $("#seekarea")
@@ -2022,5 +2136,5 @@ $(document).ready(function () {
     loadHistory();
     loadSearchHistory();
     loadDownloadHistory();
-    setInterval(syncAudio, 10000);
+    setInterval(syncAudio, 30000);
 });

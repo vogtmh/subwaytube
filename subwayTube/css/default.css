@@ -113,6 +113,10 @@ a:hover {
     text-align: center;
 }
 
+#searchbutton {
+    margin-top: 9px;
+}
+
 .pwbutton {
     width: 25%;
     float: right;
@@ -156,6 +160,12 @@ a:hover {
 
 .videoinfo {
     height: 5em;
+}
+
+.deletedownload {
+    width: 100%;
+    height: 1em;
+    text-align:right;
 }
 
 #pages {
@@ -316,7 +326,7 @@ a:hover {
 #extrabuttons {
     position: absolute;
     top: 25%;
-    left: 3%;
+    left: 1%;
     padding: 5px;
     opacity: 0.8;
     font-size: 12px;
