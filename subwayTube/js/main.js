@@ -763,8 +763,16 @@ function getDownloads() {
             let name = downloaditem.name;
             let author = downloaditem.author;
             let authorId = downloaditem.authorId;
-            let image = downloaditem.image;
-            let authorThumbnail = downloaditem.authorThumbnail;
+            var image;
+            var authorThumbnail;
+            try {
+                image = downloaditem.image64;
+                authorThumbnail = downloaditem.authorThumbnail64;
+            }
+            catch (e) {
+                image = downloaditem.image;
+                authorThumbnail = downloaditem.authorThumbnail;
+            }
 
             printDownload(videoFile, name, image, author, authorId, authorThumbnail, "#"+divid);
         }
@@ -776,6 +784,9 @@ function getDownloads() {
 
 function addDownloadhistoryItem(videoFile, name, image, author, authorId, authorThumbnail) {
     var newDownloadHistory = []
+    var image64;
+    var authorThumbnail64;
+
     for (var h = 0; h < downloadhistory.length; h++) {
         let downloaditem = downloadhistory[h]
         let downloadname = downloaditem.name;
@@ -784,18 +795,33 @@ function addDownloadhistoryItem(videoFile, name, image, author, authorId, author
         }
     }
 
-    var history_json = {
-        "videoFile": videoFile,
-        "name": name,
-        "image": image,
-        "author": author,
-        "authorId": authorId,
-        "authorThumbnail": authorThumbnail
-    };
-    newDownloadHistory.push(history_json);
+    convertImgToBase64(image, function (base64Img) {
+        image64 = base64Img;
+        console.log(image64);
 
-    downloadhistory = newDownloadHistory;
-    localStorage.downloadhistory = JSON.stringify(downloadhistory);
+        convertImgToBase64(authorThumbnail, function (base64Img2) {
+            authorThumbnail64 = base64Img2;
+            var history_json = {
+                "videoFile": videoFile,
+                "name": name,
+                "image": image,
+                "author": author,
+                "authorId": authorId,
+                "authorThumbnail": authorThumbnail,
+                "image64": image64,
+                "authorThumbnail64": authorThumbnail64
+            };
+            console.log(history_json)
+            newDownloadHistory.push(history_json);
+
+            downloadhistory = newDownloadHistory;
+            localStorage.downloadhistory = JSON.stringify(downloadhistory);
+        });
+    });
+
+    
+
+    
 }
 
 function removeDownload(fileName) {
@@ -811,9 +837,11 @@ function removeDownload(fileName) {
         let videoFile = downloadhistory[d].videoFile;
         let name = downloadhistory[d].name;
         let image = downloadhistory[d].image;
+        let image64 = downloadhistory[d].image64;
         let author = downloadhistory[d].author;
         let authorId = downloadhistory[d].authorId;
         let authorThumbnail = downloadhistory[d].authorThumbnail;
+        let authorThumbnail64 = downloadhistory[d].authorThumbnail64;
 
         if (videoFile == fileName) {
             console.log('[Downloads] ' + fileName + ' found, removing..')
@@ -823,9 +851,11 @@ function removeDownload(fileName) {
                 "videoFile": videoFile,
                 "name": name,
                 "image": image,
+                "image64": image64,
                 "author": author,
                 "authorId": authorId,
-                "authorThumbnail": authorThumbnail
+                "authorThumbnail": authorThumbnail,
+                "authorThumbnail64": authorThumbnail64
             };
             newdownloads.push(download_json);
         }
@@ -1062,7 +1092,7 @@ function loadDownloadHistory() {
     } else {
         downloadhistory = JSON.parse(localStorage.downloadhistory);
         downloadhistorycount = downloadhistory.length;
-
+        console.log(downloadhistory)
         console.log('[Download History] ' + downloadhistorycount + ' items in downloads loaded')
     }
 }
@@ -1787,6 +1817,23 @@ function showSettings() {
     getStreamquality()
 }
 
+function convertImgToBase64(url, callback, outputFormat) {
+    var canvas = document.createElement('CANVAS'),
+        ctx = canvas.getContext('2d'),
+        img = new Image;
+    img.crossOrigin = 'Anonymous';
+    img.onload = function () {
+        var dataURL;
+        canvas.height = img.height;
+        canvas.width = img.width;
+        ctx.drawImage(img, 0, 0);
+        dataURL = canvas.toDataURL(outputFormat);
+        callback.call(this, dataURL);
+        canvas = null;
+    };
+    img.src = url;
+}
+
 function checkFile(fileName, divName) {
     selectFolder().then(function (folder) {
         folder.tryGetItemAsync(fileName).then(function (testFile) {
@@ -1816,6 +1863,7 @@ function printDownload(fileName, name, image, author, authorId, authorThumbnail,
                 applySizing();
             }
             else {
+                removeDownload(fileName);
                 $(divName).html("")
             }
         });
@@ -2039,6 +2087,7 @@ function fileExists(folder, fileName) {
     });
 }
 
+/*
 function saveFileToFolder(folder, fileUrl, fileName) {
     return downloadFile(fileUrl).then(function (fileData) {
         return fileData;
@@ -2048,10 +2097,10 @@ function saveFileToFolder(folder, fileUrl, fileName) {
         });
     });
 }
+*/
 
-/*
 function saveFileToFolder(folder, fileUrl, fileName) {
-    fileExists(folder, fileName).then(function (exists) {
+    return fileExists(folder, fileName).then(function (exists) {
         if (!exists) {
             return downloadFile(fileUrl).then(function (fileData) {
                 return fileData;
@@ -2063,7 +2112,7 @@ function saveFileToFolder(folder, fileUrl, fileName) {
         }
     });
 }
-*/
+
 
 function downloadVideo(fileUrl, fileName, name, image, author, authorId, authorThumbnail) {
     fileName = fileName.replace(/ /g, "_");
@@ -2101,6 +2150,8 @@ $(document).ready(function () {
         Windows.UI.Core.SystemNavigationManager.getForCurrentView().addEventListener("backrequested", onBackPressed);
         appVersion = Windows.ApplicationModel.Package.current.id.version;
         appstring = `${appVersion.major}.${appVersion.minor}.${appVersion.build}`;
+        var currentView = Windows.UI.Core.SystemNavigationManager.getForCurrentView();
+        currentView.appViewBackButtonVisibility = Windows.UI.Core.AppViewBackButtonVisibility.visible;
     }
     catch(e) {
         console.log('Windows namespace not available, backbutton listener and versioninfo skipped.')
