@@ -15,6 +15,7 @@ var channelFeed = []
 let touchstartY = 0;
 let seekX = 0;
 let refreshindex = 0;
+let videoindex = 0;
 let feedcontent = '';
 let feedtimestamp = (new Date).getTime();
 var streamquality;
@@ -119,7 +120,7 @@ function applySizing() {
 function switchFullsize () {
     $(".videoitem").css("width", "100%");
     $(".videoitem").css("font-size", "16px");
-    $(".videoinfo").css("height", "3em");
+    $(".videoinfo").css("height", "3.5em");
     $("#display_fullsize").css("background-color", "Highlight")
     $("#display_quarters").css("background-color", "#333")
     $("#display_niners").css("background-color", "#333")
@@ -1098,6 +1099,7 @@ function loadDownloadHistory() {
 }
 
 function playVideo(id, trycount) {
+    videoindex++;
     videoActive = true;
     videoLocation = 'remote';
     let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US";
@@ -1109,6 +1111,8 @@ function playVideo(id, trycount) {
     $("#videofile").hide();
     $("#loadingimage").show();
     $("body").css("overflow-y", "hidden");
+
+    var playindex = videoindex;
     $.ajax({
         url: apiurl,
         type: 'GET',
@@ -1175,7 +1179,7 @@ function playVideo(id, trycount) {
                              <tr><td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `","` + name + `","` + image + `","` + author + `","` + authorId + `","` + authorThumbnail + `")'><img src="images/download.png"></div></td></tr>`;
                 extrabuttons += `</table>`;
 
-                if (videoActive) {
+                if (videoActive && playindex == videoindex) {
                     $('#videofile').attr('src', stream.url);
                     $('#audiofile').attr('src', audiostream.url);
                     $("#loadingimage").hide();
@@ -1742,15 +1746,25 @@ function getServerlist() {
                 let api = attributes.api;
                 
                 if (type == 'https' && api == true && cors == true) {
-                    let region = attributes.region;
-                    let uptime = attributes.monitor.uptime
-                    if (server == serverurl) {
-                        html += '<option value="' + servername + '" selected>' + servername + '</option>'
+                    try {
+                        if (attributes.region) {
+                            let region = attributes.region;
+                        }
+                        if (attributes.monitor) {
+                            let uptime = attributes.monitor.uptime
+                        }
+                        if (server == serverurl) {
+                            html += '<option value="' + servername + '" selected>' + servername + '</option>'
+                        }
+                        else {
+                            html += '<option value="' + servername + '">' + servername + '</option>'
+                        }
+                        serverlist[servername] = { "name": servername, "url": serverurl, "attributes": attributes }
                     }
-                    else {
-                        html += '<option value="' + servername + '">' + servername + '</option>'
+                    catch (e) {
+                        console.log(element);
+                        console.log(e.message);
                     }
-                    serverlist[servername] = {"name":servername, "url":serverurl, "attributes":attributes}
                 }  
             }
 
