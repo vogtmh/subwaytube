@@ -208,7 +208,7 @@ function printFeedHeader(trycount) {
 
     search += `<div class="pull-to-refresh"></div>`;
     search += `<div id="feed">
-                    <div id="trycount">`+ trycount + `</div>
+                    <!--<div id="trycount">`+ trycount + `</div>-->
                     <img src="images/loading.gif" />
                   </div>`;
 
@@ -562,6 +562,13 @@ function searchVideos(page, sortbydate) {
     }
 
     console.log(requesturl)
+
+    let html = `<div id="searchbox">
+                    <input type="text" id="searchtext" name="searchtext" size="14" value="`+searchstring+`" />
+                    <div class="pwbutton" id="searchbutton" onclick='searchVideos()'>OK</div>
+                  </div>
+                  <div id="feed"><img src="images/loading.gif" /></div>`;
+    $('#content').html(html);
 
     $.ajax({
         url: requesturl,
@@ -1108,6 +1115,7 @@ function playVideo(id, trycount) {
     console.log('requesting from ' + apiurl + ' ..')
     $("#errortext").hide();
     $("#videoplayer").show();
+    $("#closevideo").show();
     $("#videofile").hide();
     $("#loadingimage").show();
     $("body").css("overflow-y", "hidden");
@@ -1233,6 +1241,7 @@ function playDownload(fileName, title, author, authorId, authorThumbnail) {
     
     $("#errortext").hide();
     $("#videoplayer").show();
+    $("#closevideo").show();
     $("#videofile").hide();
     $("body").css("overflow-y", "hidden");    
 
