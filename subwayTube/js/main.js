@@ -627,15 +627,17 @@ function searchVideos(page, sortbydate) {
             }
             html += "</div>"
             html += '<div id="spacer"></div>'
-            $('#content').html(html);
-            $('#searchtext').keydown(function (event) {
-                if (event.which === 13) {
-                    $("#searchtext").blur()
-                    searchVideos()
-                }
-            });
-            window.scrollTo(0, 0);
-            applySizing();
+            if (tab == 'search') {
+                $('#content').html(html);
+                $('#searchtext').keydown(function (event) {
+                    if (event.which === 13) {
+                        $("#searchtext").blur()
+                        searchVideos()
+                    }
+                });
+                window.scrollTo(0, 0);
+                applySizing();
+            }
         },
         error(jqXHR, status, errorThrown) {
             console.log('failed to fetch ' + requesturl)
