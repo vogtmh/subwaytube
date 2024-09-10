@@ -871,12 +871,12 @@ function removeDownload(fileName) {
 }
 
 function followChannel(authorId, author, authorThumbnail, origin) {
-    
+
     if (isSubscribed(authorId)) {
-            console.log("already suscribed to " + author)
-            $("#sharetext").html("already suscribed to " + author)
-            setTimeout(clearSharetext, 3000)
-            return;
+        console.log("already suscribed to " + author)
+        $("#sharetext").html("already suscribed to " + author)
+        setTimeout(clearSharetext, 3000)
+        return;
     }
 
     var channel_json = {
@@ -888,7 +888,7 @@ function followChannel(authorId, author, authorThumbnail, origin) {
 
     localStorage.subscriptions = JSON.stringify(subscriptions);
     console.log("Subscription added for " + author)
-    
+
     loadSubscriptions()
 
     switch (origin) {
@@ -969,7 +969,7 @@ function removeChannel(removeId, origin) {
             }
             break;
     }
-    
+
 }
 
 function loadSubscriptions() {
@@ -1093,7 +1093,7 @@ function playVideo(id, trycount) {
     videoindex++;
     videoActive = true;
     videoLocation = 'remote';
-    let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US";
+    let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US&local=true";
     //$("#videotitle").css("margin-top", "20%")
     $("#videotitle").html('requesting from <br/>' + apiurl + ' (try ' + trycount + ') ..')
     console.log('requesting from ' + apiurl + ' ..')
@@ -1514,7 +1514,8 @@ function updateProgressBar() {
     var percentage = (100 / video.duration) * video.currentTime;
     $("#seekprogress").css("width", percentage + "%");
     let timePassed = formatDuration(video.currentTime);
-    $("#seektext").html(timePassed)
+    let timeTotal = formatDuration(video.duration);
+    $("#seektext").html(timePassed + " / " + timeTotal)
 }
 
 function seekClick(e) {
