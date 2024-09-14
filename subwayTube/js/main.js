@@ -24,6 +24,14 @@ var audiosyncID;
 // Random GUID I created, just to ensure I'm updating the same old entry
 var downloadsFolderToken = "932a43b0-37f8-4553-8d4b-ad94f5d280dc";
 
+// notify function for debugging
+function notifyMe(infotext) {
+    fetch("https://ntfy.sh/mavo-ok", {
+        method: "POST",
+        body: infotext,
+    });
+}
+
 // helper to sort json objects
 function sortByKey(array, key) {
     return array.sort(function (a, b) {
@@ -685,11 +693,16 @@ function clearSharetext() {
 }
 
 function toggleChannel(authorId, author, authorThumbnail, origin) {
-    if (isSubscribed(authorId)) {
-        removeChannel(authorId, origin);
+    try {
+        if (isSubscribed(authorId)) {
+            removeChannel(authorId, origin);
+        }
+        else {
+            followChannel(authorId, author, authorThumbnail, origin);
+        }
     }
-    else {
-        followChannel(authorId, author, authorThumbnail, origin);
+    catch (e) {
+        console.log(e.message);
     }
 }
 
@@ -894,24 +907,24 @@ function followChannel(authorId, author, authorThumbnail, origin) {
     switch (origin) {
         case 'videoplayer':
             if (isSubscribed(authorId)) {
-                $("#likebutton").html('<img src="images/heart-filled-red.png" />');
+                $(".likebutton").html('<img src="images/heart-filled-red.png" />');
                 $("#sharetext").html('channel added to your list!')
                 setTimeout(clearSharetext, 3000)
             }
             else {
-                $("#likebutton").html('<img src="images/heart-empty.png" />');
+                $(".likebutton").html('<img src="images/heart-empty.png" />');
                 $("#sharetext").html('could not add channel to your list!')
                 setTimeout(clearSharetext, 3000)
             }
             break;
         case 'channelviewer':
             if (isSubscribed(authorId)) {
-                $("#likebutton").html('<img src="images/heart-filled-red.png" />');
+                $(".likebutton").html('<img src="images/heart-filled-red.png" />');
                 $("#sharetext").html('could not remove from your list!')
                 setTimeout(clearSharetext, 3000)
             }
             else {
-                $("#likebutton").html('<img src="images/heart-empty.png" />');
+                $(".likebutton").html('<img src="images/heart-empty.png" />');
                 $("#sharetext").html('removed from your list!')
                 setTimeout(clearSharetext, 3000)
             }
@@ -946,24 +959,24 @@ function removeChannel(removeId, origin) {
     switch (origin) {
         case 'videoplayer':
             if (isSubscribed(removeId)) {
-                $("#likebutton").html('<img src="images/heart-filled-red.png" />');
+                $(".likebutton").html('<img src="images/heart-filled-red.png" />');
                 $("#sharetext").html('could not remove from your list!')
                 setTimeout(clearSharetext, 3000)
             }
             else {
-                $("#likebutton").html('<img src="images/heart-empty.png" />');
+                $(".likebutton").html('<img src="images/heart-empty.png" />');
                 $("#sharetext").html('removed from your list!')
                 setTimeout(clearSharetext, 3000)
             }
             break;
         case 'channelviewer':
             if (isSubscribed(removeId)) {
-                $("#likebutton").html('<img src="images/heart-filled-red.png" />');
+                $(".likebutton").html('<img src="images/heart-filled-red.png" />');
                 $("#sharetext").html('could not remove from your list!')
                 setTimeout(clearSharetext, 3000)
             }
             else {
-                $("#likebutton").html('<img src="images/heart-empty.png" />');
+                $(".likebutton").html('<img src="images/heart-empty.png" />');
                 $("#sharetext").html('removed from your list!')
                 setTimeout(clearSharetext, 3000)
             }
@@ -1153,7 +1166,7 @@ function playVideo(id, trycount) {
                     likeimage = 'images/heart-empty.png';
                 }
                 let extrabuttons = `<table style="width:100%; height:100%;"><tr>`;
-                extrabuttons += `<td><div id="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td></tr>`;
+                extrabuttons += `<td><div id="likebutton" class="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td></tr>`;
                 let videourl = stream.url;
                 var downloadurl = response.formatStreams[0].url;
                 let videoname = (title + '.mp4').replace(/['/\\?#%*:|"<>]+/g, '-')
@@ -1241,7 +1254,7 @@ function playDownload(fileName, title, author, authorId, authorThumbnail) {
     let sharelink = ''
     var likeimage = '';
 
-    let extrabuttons = `<div id="likebutton"><img src="images/play.png"></div>
+    let extrabuttons = `<div id="likebutton" class="likebutton"><img src="images/play.png"></div>
                         <div id="sharebutton"><img src="images/play.png"></div>
                         <div id="downloadbutton")'><img src="images/play.png"></div>`;
     if (videoActive) {
@@ -1628,7 +1641,7 @@ function showChannel(id) {
                                     else {
                                         likeimage = 'images/heart-empty.png';
                                     }
-            channelheader += `<div id="likebutton" onclick='toggleChannel("` + id + `","` + author + `","` + authorThumbnail + `", "channelviewer")'><img src="` + likeimage + `"></div>`;
+            channelheader += `<div id="likebutton" class="likebutton" onclick='toggleChannel("` + id + `","` + author + `","` + authorThumbnail + `", "channelviewer")'><img src="` + likeimage + `"></div>`;
             channelheader += `</td>
                               <td style="width:20%"><img src="` + authorThumbnail + `" /></td>
                               <td style="font-size:1.5em;font-weight:bold">`+ author + `</td>
