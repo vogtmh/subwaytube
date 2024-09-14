@@ -1206,7 +1206,9 @@ function playVideo(id, trycount) {
             else {
                 if (videoActive) {
                     console.log('failed to fetch ' + apiurl + '. Tried it for 10 times.')
-                    $("#videotitle").html('failed to fetch <br/>' + apiurl + '. Tried it for 10 times.')
+                    $("#loadingimage").hide();
+                    $("#errortext").html('Could not fetch video. Please check your connection or try another server from the settings');
+                    $("#errortext").show();
                 }
             }
         },
