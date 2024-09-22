@@ -460,6 +460,17 @@ a:hover {
     cursor: pointer;
 }
 
+#videodescription {
+    position: absolute;
+    top: 0px;
+    left: 5%;
+    width: 90%;
+    bottom: 0px;
+    overflow: auto;
+    overflow-x: hidden;
+    text-align: left;
+}
+
 #closevideo {
     position: absolute;
     top: 0px;

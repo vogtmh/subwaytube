@@ -593,14 +593,19 @@ function searchVideos(page, sortbydate) {
                 var element = response[i];
                 let type = element.type;
                 let published = element.publishedText;
-                if (type != 'livestream' && type != 'playlist' && type != 'scheduled' && published != '0 seconds ago') {
-                    if (type == 'channel') {
+                let videoLength = element.lengthSeconds;
+                if (type != 'playlist' && type != 'scheduled' && videoLength != 0) {
+                    if (type == 'livestream' && published == '0 seconds ago') {
+                        let title = 'none';
+                    }
+                    else if (type == 'channel') {
                         let title = element.author;
                         let authorId = element.authorId;
                         let image = 'https://'+element.authorThumbnails[4].url;
                         html += `<div class="videoitem" onclick='showChannel("` + authorId + `")'><img src="` + image + '" style="height: 176px; width:176px;" /><div class="videoinfo">' + shortStr(title) + '</div></div>';
                     }
                     else {
+                        if (published == '0 seconds ago') { published = '';}
                         let title = element.title;
                         let author = element.author;
                         var image = '';
@@ -1110,6 +1115,8 @@ function playVideo(id, trycount) {
     //$("#videotitle").css("margin-top", "20%")
     $("#videotitle").html('requesting from <br/>' + apiurl + ' (try ' + trycount + ') ..')
     console.log('requesting from ' + apiurl + ' ..')
+    $("#videodescription").hide();
+    $("#videodescription").html('');
     $("#errortext").hide();
     $("#videoplayer").show();
     $("#closevideo").show();
@@ -1131,6 +1138,7 @@ function playVideo(id, trycount) {
                 let authorThumbnailString = encodeURIComponent(authorThumbnail)
                 let published = response.publishedText;
                 var stream = response.formatStreams[0];
+                var descriptionHtml = response.descriptionHtml;
                 var audiostream = '';
                 if (streamquality != '360p') {
                     console.log('Looking for adaptive format..')
@@ -1192,6 +1200,7 @@ function playVideo(id, trycount) {
                     $("#channelimage").html(channelimage);
                     $("#videotitle").html(infotext);
                     $("#extrabuttons").html(extrabuttons);
+                    $("#videodescription").html(descriptionHtml);
                     videoResize()
                     $("#videofile").show();
                     
@@ -1237,7 +1246,8 @@ function playDownload(fileName, title, author, authorId, authorThumbnail) {
     let videosource = downloadFolder + '\\' + fileName;
     //let videosource = 'file:///' + downloadPath + '/' + fileName;
     
-    
+    $("#videodescription").hide();
+    $("#videodescription").html('');
     $("#errortext").hide();
     $("#videoplayer").show();
     $("#closevideo").show();
@@ -1300,6 +1310,8 @@ function videoResize() {
     var playsize = 0;
     var seektop = 0;
     var seeksize = 0;
+
+    var descriptiontop = 0;
 
     if (bwidth > bheight) { orientation = 'landscape'; }
     else { orientation = 'portrait'; }
@@ -1365,6 +1377,7 @@ function videoResize() {
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
+            descriptiontop = (videoheight * 1.2);
             break;
         case "square":
             playsize = videoheight / 4;
@@ -1373,6 +1386,7 @@ function videoResize() {
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
+            descriptiontop = (videoheight * 1.2);
             break;
         case "landscape":
             playsize = videoheight / 3;
@@ -1381,6 +1395,7 @@ function videoResize() {
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
+            descriptiontop = (videoheight * 1.2);
             break;
     }
 
@@ -1444,6 +1459,14 @@ function videoResize() {
     $("#seekarea").css("top", (videoheight - (extrasize * 2)) + "px")
     $("#seektext").css("line-height", (extrasize * 2) + "px")
     $("#seektext").css("font-size", (extrasize) + "px")
+
+    if (videotype != "portrait" && orientation == "portrait") {
+        $("#videodescription").css("top", descriptiontop + "px");
+        $("#videodescription").show();
+    }
+    else {
+        $("#videodescription").hide();
+    }
 }
 
 function rewindVideo() {
