@@ -8,6 +8,12 @@
                   <div style="text-align: left; line-height: 150%;">
                     <div>subwayTube ` + appstring + ` by mavodev <br/> powered by <a href="https://invidious.io/" target="_blank">Invidious</a></div>
                     <div id="setting_serverlist"></div>
+                    <div id="setting_customserver"><button id="button_customserver" onclick="inputCustomserver()">Set custom server</button></div>
+                    <div id="input_customserver">
+                        <input type="text" id="text_customserver" name="text_customserver" size="15" />
+                        <button id="apply_customserver" onclick="applyCustomserver()">Apply</button>
+                        <button id="cancel_customserver" onclick="cancelCustomserver()">Cancel</button>
+                    </div>
                     <div id="setting_serverstats"></div>
                     <div style="width: 100%;height:30px"></div>
                     <table style="width:100%;">
@@ -55,6 +61,41 @@ function activateAlternative(alternative) {
     showServerstats()
 }
 
+function inputCustomserver() {
+    let hostname = server.replace('https://', '');
+    $("#text_customserver").val(hostname);
+    $("#setting_customserver").hide();
+    $("#input_customserver").show();
+    $("#text_customserver").focus();
+    $('#text_customserver').keydown(function (event) {
+        if (event.which === 13) {
+            $("#text_customserver").blur()
+            applyCustomserver()
+        }
+    });
+}
+
+function applyCustomserver() {
+    var customserver = $("#text_customserver").val();
+    if (customserver == '') {
+        localStorage.use_customserver = false;
+        use_customserver = localStorage.use_customserver;
+        getServerlist();
+    }
+    else {
+        localStorage.use_customserver = true;
+        use_customserver = localStorage.use_customserver;
+        activateAlternative(customserver);
+    }
+    $("#setting_customserver").show();
+    $("#input_customserver").hide();
+}
+
+function cancelCustomserver() {
+    $("#setting_customserver").show();
+    $("#input_customserver").hide();
+}
+
 function clearSettingstext() {
     $("#settingstext").html('')
 }
@@ -68,7 +109,7 @@ function getServerlist() {
         dataType: 'json',
         success(response) {
             serverlist = {}
-            var html = `<label for="servers">Server:</label><br/>
+            var html = `<label for="servers">Serverlist:</label><br/>
                         <select name="servers" id="servers" onchange="applySettings()">`;
             var stats;
             var serveravailable = false;
@@ -109,11 +150,16 @@ function getServerlist() {
             }
 
             html += `</select>`
-            if (serveravailable == false) {
+            if (serveravailable == false && use_customserver == 'false') {
                 activateAlternative(alternativeserver);
             }
             if (tab == 'settings') {
                 $("#setting_serverlist").html(html);
+                let servers_width = $("#servers").width();
+                if (servers_width > 120) {
+                    $("#button_customserver").width(servers_width);
+                    $("#text_customserver").width(servers_width);
+                }
                 console.log('[Serverlist] updated.')
                 showServerstats()
             }
@@ -125,6 +171,11 @@ function getServerlist() {
 }
 
 function showServerstats() {
+    if (tab == 'settings') {
+        let hostname = server.replace('https://', '');
+        $("#setting_serverstats").html('Currently using: ' + hostname);
+    }
+    /*
     try {
         let servername = $("#servers").val()
         let attributes = serverlist[servername].attributes
@@ -137,7 +188,7 @@ function showServerstats() {
     }
     catch (e) {
         $("#setting_serverstats").html('Cannot display serverinfo. Serverlist is unavailable or empty.');
-    }
+    }*/
 }
 
 function getStreamquality() {

@@ -1,4 +1,5 @@
 var server;
+var use_customserver;
 var appstring;
 var serverlist;
 var timeoutid;
@@ -85,6 +86,13 @@ function loadSettings() {
         server = localStorage.invidious_server;
     } else {
         server = localStorage.invidious_server;
+    }
+
+    if (localStorage.getItem("use_customserver") === null) {
+        localStorage.use_customserver = false;
+        use_customserver = localStorage.use_customserver;
+    } else {
+        use_customserver = localStorage.use_customserver;
     }
 
     if (localStorage.getItem("sizing") === null) {

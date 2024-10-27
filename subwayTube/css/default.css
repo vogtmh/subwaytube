@@ -589,11 +589,25 @@ a:hover {
 
 #setting_serverlist {
    margin-top: 15px;
-   height: 70px;
 }
 
 #setting_serverlist select{
     font-size: 18px;
+}
+
+#setting_customserver {
+    margin-top: 5px;
+    height: 40px;
+}
+
+#apply_customserver {
+    margin-left: 10px;
+}
+
+#input_customserver {
+    margin-top: 5px;
+    height: 40px;
+    display: none;
 }
 
 #settingstext {
