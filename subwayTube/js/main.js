@@ -1974,6 +1974,7 @@ $(document).ready(function () {
     document.onselectstart = new Function("return false")
 
     loadSettings();
+    getServerlist();
     loadSubscriptions();
     showFeed();
     loadHistory();

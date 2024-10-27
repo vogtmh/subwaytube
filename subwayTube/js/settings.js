@@ -47,6 +47,14 @@ function applySettings() {
     showServerstats()
 }
 
+function activateAlternative(alternative) {
+    console.log('Server ' + server + ' unavailable, switching to ' + alternative);
+    let servername = alternative;
+    localStorage.invidious_server = 'https://' + alternative;
+    server = localStorage.invidious_server;
+    showServerstats()
+}
+
 function clearSettingstext() {
     $("#settingstext").html('')
 }
@@ -63,6 +71,9 @@ function getServerlist() {
             var html = `<label for="servers">Server:</label><br/>
                         <select name="servers" id="servers" onchange="applySettings()">`;
             var stats;
+            var serveravailable = false;
+            var alternativeserver = server;
+
             for (var i = 0; i < response.length; i++) {
                 var element = response[i];
                 let servername = element[0]
@@ -81,12 +92,14 @@ function getServerlist() {
                             let uptime = attributes.monitor.uptime
                         }
                         if (server == serverurl) {
+                            serveravailable = true;
                             html += '<option value="' + servername + '" selected>' + servername + '</option>'
                         }
                         else {
                             html += '<option value="' + servername + '">' + servername + '</option>'
                         }
                         serverlist[servername] = { "name": servername, "url": serverurl, "attributes": attributes }
+                        alternativeserver = servername;
                     }
                     catch (e) {
                         console.log(element);
@@ -96,6 +109,9 @@ function getServerlist() {
             }
 
             html += `</select>`
+            if (serveravailable == false) {
+                activateAlternative(alternativeserver);
+            }
             if (tab == 'settings') {
                 $("#setting_serverlist").html(html);
                 console.log('[Serverlist] updated.')
