@@ -126,7 +126,7 @@ function getServerlist() {
                 let cors = attributes.cors;
                 let api = attributes.api;
 
-                if (type == 'https' && api == true && cors == true) {
+                if (type == 'https' && api == true) { //&& cors == true
                     try {
                         if (attributes.region) {
                             let region = attributes.region;
