@@ -43,9 +43,11 @@ function hideSettings() {
 }
 
 function applySettings() {
-    let servername = $("#servers").val()
-    localStorage.invidious_server = 'https://' + servername;
-    server = localStorage.invidious_server;
+    if (use_customserver == 'false') {
+        let servername = $("#servers").val()
+        localStorage.invidious_server = 'https://' + servername;
+        server = localStorage.invidious_server;
+    }
     showServerstats()
     let quality = $("#streamqualityselect").val()
     localStorage.streamquality = quality;
@@ -173,6 +175,9 @@ function getServerlist() {
 function showServerstats() {
     if (tab == 'settings') {
         let hostname = server.replace('https://', '');
+        if (use_customserver == 'true') {
+            hostname = hostname + ' (custom)';
+        }
         $("#setting_serverstats").html('Currently using: ' + hostname);
     }
     /*
