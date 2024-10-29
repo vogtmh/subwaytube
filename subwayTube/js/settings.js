@@ -6,10 +6,15 @@
 
     var output = `<h2 style="text-align: left;">Settings</h2>
                   <div style="text-align: left; line-height: 150%;">
-                    <div>subwayTube ` + appstring + ` by mavodev <br/> powered by <a href="https://invidious.io/" target="_blank">Invidious</a></div>
-                    <div id="setting_serverlist"></div>
-                    <div id="setting_customserver"><button id="button_customserver" onclick="inputCustomserver()">Set custom server</button></div>
-                    <div id="input_customserver">
+                    <div>subwayTube v` + appstring + ` by mavodev <br/> powered by <a href="https://invidious.io/" target="_blank">Invidious</a></div>
+                    <div id="setting_serverlist"></div>`;
+    if (use_customserver == 'true') {
+        output += `<div id="setting_customserver"><button id="button_customserver" onclick="applyCustomserver()">Remove custom server</button></div>`;
+    }
+    else {
+        output += `<div id="setting_customserver"><button id="button_customserver" onclick="inputCustomserver()">Set custom server</button></div>`;
+    }
+    output +=      `<div id="input_customserver">
                         <input type="text" id="text_customserver" name="text_customserver" size="15" />
                         <button id="apply_customserver" onclick="applyCustomserver()">Apply</button>
                         <button id="cancel_customserver" onclick="cancelCustomserver()">Cancel</button>
@@ -88,6 +93,8 @@ function applyCustomserver() {
         localStorage.use_customserver = true;
         use_customserver = localStorage.use_customserver;
         activateAlternative(customserver);
+        $("#servers").hide();
+        $("#servers_label").hide();
     }
     $("#setting_customserver").show();
     $("#input_customserver").hide();
@@ -111,7 +118,7 @@ function getServerlist() {
         dataType: 'json',
         success(response) {
             serverlist = {}
-            var html = `<label for="servers">Serverlist:</label><br/>
+            var html = `<label for="servers" id="servers_label">Serverlist:</label><br/>
                         <select name="servers" id="servers" onchange="applySettings()">`;
             var stats;
             var serveravailable = false;
@@ -156,13 +163,15 @@ function getServerlist() {
                 activateAlternative(alternativeserver);
             }
             if (tab == 'settings') {
-                $("#setting_serverlist").html(html);
-                let servers_width = $("#servers").width();
-                if (servers_width > 120) {
-                    $("#button_customserver").width(servers_width);
-                    $("#text_customserver").width(servers_width);
+                if (use_customserver == 'false') {
+                    $("#setting_serverlist").html(html);
+                    let servers_width = $("#servers").width();
+                    if (servers_width > 120) {
+                        $("#button_customserver").width(servers_width);
+                        $("#text_customserver").width(servers_width);
+                    }
+                    console.log('[Serverlist] updated.')
                 }
-                console.log('[Serverlist] updated.')
                 showServerstats()
             }
         },
@@ -179,6 +188,13 @@ function showServerstats() {
             hostname = hostname + ' (custom)';
         }
         $("#setting_serverstats").html('Currently using: ' + hostname);
+        if (use_customserver == 'true') {
+            $("#text_customserver").val('');
+            $("#setting_customserver").html('<button id="button_customserver" onclick="applyCustomserver()">Remove custom server</button>');
+        }
+        else {
+            $("#setting_customserver").html('<button id="button_customserver" onclick="inputCustomserver()">Set custom server</button>');
+        }
     }
     /*
     try {

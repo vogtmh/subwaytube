@@ -598,16 +598,31 @@ a:hover {
 #setting_customserver {
     margin-top: 5px;
     height: 40px;
+    font-size: 18px;
+}
+
+#button_customserver {
+    font-size: 18px;
+}
+
+#text_customserver {
+    font-size: 18px;
 }
 
 #apply_customserver {
     margin-left: 10px;
+    font-size: 18px;
+}
+
+#cancel_customserver {
+    font-size: 18px;
 }
 
 #input_customserver {
     margin-top: 5px;
     height: 40px;
     display: none;
+    font-size: 18px;
 }
 
 #settingstext {
