@@ -625,6 +625,10 @@ a:hover {
     font-size: 18px;
 }
 
+#button_localstreams {
+    font-size: 18px;
+}
+
 #settingstext {
     margin-top: 10px;
     text-align: center;

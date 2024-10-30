@@ -14,13 +14,19 @@
     else {
         output += `<div id="setting_customserver"><button id="button_customserver" onclick="inputCustomserver()">Set custom server</button></div>`;
     }
-    output +=      `<div id="input_customserver">
+    output += `<div id="input_customserver">
                         <input type="text" id="text_customserver" name="text_customserver" size="15" />
                         <button id="apply_customserver" onclick="applyCustomserver()">Apply</button>
                         <button id="cancel_customserver" onclick="cancelCustomserver()">Cancel</button>
                     </div>
-                    <div id="setting_serverstats"></div>
-                    <div style="width: 100%;height:30px"></div>
+                    <div id="setting_serverstats"></div>`;
+    if (use_localstreams == 'false') {
+        output += `<div id="setting_localstreams"><button id="button_localstreams" onclick="enableLocalstreams()">Use streams from instance</button></div>`;
+    }
+    else {
+        output += `<div id="setting_localstreams"><button id="button_localstreams" onclick="disableLocalstreams()">Use streams from Google</button></div>`;
+    }
+    output +=      `<div style="width: 100%;height:30px"></div>
                     <table style="width:100%;">
                     <tr>
                       <td style="width:33%"><div class="settingsbutton" id="backupbutton" onclick='createBackup()'><img src="images/backup.png" /><br/>Backup</div></td>
@@ -103,6 +109,27 @@ function applyCustomserver() {
 function cancelCustomserver() {
     $("#setting_customserver").show();
     $("#input_customserver").hide();
+}
+
+function updateLocalstreambutton() {
+    if (use_localstreams == 'false') {
+        $("#setting_localstreams").html('<button id="button_localstreams" onclick="enableLocalstreams()">Use streams from instance</button>');
+    }
+    else {
+        $("#setting_localstreams").html('<button id="button_localstreams" onclick="disableLocalstreams()">Use streams from Google</button></div>');
+    }
+}
+
+function enableLocalstreams() {
+    localStorage.use_localstreams = true;
+    use_localstreams = localStorage.use_localstreams;
+    updateLocalstreambutton();
+}
+
+function disableLocalstreams() {
+    localStorage.use_localstreams = false;
+    use_localstreams = localStorage.use_localstreams;
+    updateLocalstreambutton();
 }
 
 function clearSettingstext() {

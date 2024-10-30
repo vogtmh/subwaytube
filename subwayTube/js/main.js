@@ -1,5 +1,6 @@
 var server;
 var use_customserver;
+var use_localstreams;
 var appstring;
 var serverlist;
 var timeoutid;
@@ -93,6 +94,13 @@ function loadSettings() {
         use_customserver = localStorage.use_customserver;
     } else {
         use_customserver = localStorage.use_customserver;
+    }
+
+    if (localStorage.getItem("use_localstreams") === null) {
+        localStorage.use_localstreams = false;
+        use_localstreams = localStorage.use_localstreams;
+    } else {
+        use_localstreams = localStorage.use_localstreams;
     }
 
     if (localStorage.getItem("sizing") === null) {
@@ -690,6 +698,7 @@ function videoError() {
         $("#closevideo").show();
         $("#errortext").html('Could not load video. Please check your connection or try another server from the settings');
         $("#errortext").show();
+        $("#videodescription").html('');
     }
 }
 
@@ -1119,7 +1128,11 @@ function playVideo(id, trycount) {
     videoindex++;
     videoActive = true;
     videoLocation = 'remote';
-    let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US&local=true";
+    let extraOptions = '';
+    if (use_localstreams == 'true') {
+        extraOptions = '&local=true';
+    }
+    let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US" + extraOptions;
     //$("#videotitle").css("margin-top", "20%")
     $("#videotitle").html('requesting from <br/>' + apiurl + ' (try ' + trycount + ') ..')
     console.log('requesting from ' + apiurl + ' ..')
