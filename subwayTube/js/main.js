@@ -1221,7 +1221,7 @@ function playVideo(id, trycount) {
                     $("#channelimage").html(channelimage);
                     $("#videotitle").html(infotext);
                     $("#extrabuttons").html(extrabuttons);
-                    $("#videodescription").html(descriptionHtml);
+                    $("#videodescription").html("<h3>" + infotext + ", " + published + "</h3>" + descriptionHtml);
                     videoResize()
                     $("#videofile").show();
                     
