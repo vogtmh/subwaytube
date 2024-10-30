@@ -181,8 +181,13 @@ function moveTouch(e) {
     const pullToRefresh = document.querySelector('.pull-to-refresh');
     const touchY = e.touches[0].clientY;
     const touchDiff = touchY - touchstartY;
+    /*
     if (touchDiff > 30) {
         $(".pull-to-refresh").css("height", (touchDiff / 3)-10);
+        $(".pull-to-refresh").html("pull down to refresh");
+    }*/
+    if (touchDiff > 0) {
+        $(".pull-to-refresh").css("height", (touchDiff / 3));
         $(".pull-to-refresh").html("pull down to refresh");
     }
     if (touchDiff > 300 && window.scrollY === 0) {
@@ -1628,7 +1633,7 @@ function showControls() {
         else {
             $("#pause").show();
             $("#play").hide();
-            timeoutid = setTimeout(hideControls, 3000);
+            timeoutid = setTimeout(hideControls, 4000);
         }   
     }
     else {
