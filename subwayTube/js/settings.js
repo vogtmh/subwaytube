@@ -11,8 +11,8 @@
     if (use_customserver == 'true') {
         output += `<div id="setting_customserver"><button id="button_customserver" onclick="applyCustomserver()">Remove custom server</button></div>`;
     }
-    else {
-        output += `<div id="setting_customserver"><button id="button_customserver" onclick="inputCustomserver()">Set custom server</button></div>`;
+    else { 
+        output += `<div id="setting_customserver"></div>`;
     }
     output += `<div id="input_customserver">
                         <input type="text" id="text_customserver" name="text_customserver" size="15" />
@@ -56,6 +56,11 @@ function hideSettings() {
 function applySettings() {
     if (use_customserver == 'false') {
         let servername = $("#servers").val()
+        if (servername == "custom-server") {
+            getServerlist();
+            inputCustomserver();
+            return;
+        } 
         localStorage.invidious_server = 'https://' + servername;
         server = localStorage.invidious_server;
     }
@@ -101,8 +106,8 @@ function applyCustomserver() {
         activateAlternative(customserver);
         $("#servers").hide();
         $("#servers_label").hide();
+        $("#setting_customserver").show();
     }
-    $("#setting_customserver").show();
     $("#input_customserver").hide();
 }
 
@@ -185,6 +190,7 @@ function getServerlist() {
                 }
             }
 
+            html += '<option value="custom-server">Custom server ..</option>'
             html += `</select>`
             if (serveravailable == false && use_customserver == 'false') {
                 activateAlternative(alternativeserver);
@@ -220,8 +226,11 @@ function showServerstats() {
             $("#setting_customserver").html('<button id="button_customserver" onclick="applyCustomserver()">Remove custom server</button>');
         }
         else {
-            $("#setting_customserver").html('<button id="button_customserver" onclick="inputCustomserver()">Set custom server</button>');
+            $("#setting_customserver").html('');
         }
+        /*else {
+            $("#setting_customserver").html('<button id="button_customserver" onclick="inputCustomserver()">Set custom server</button>');
+        }*/
     }
     /*
     try {

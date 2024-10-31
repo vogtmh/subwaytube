@@ -597,7 +597,7 @@ a:hover {
 
 #setting_customserver {
     margin-top: 5px;
-    height: 40px;
+    height: auto;
     font-size: 18px;
 }
 
@@ -620,9 +620,13 @@ a:hover {
 
 #input_customserver {
     margin-top: 5px;
-    height: 40px;
+    height: auto;
     display: none;
     font-size: 18px;
+}
+
+#setting_serverstats {
+    margin-bottom:10px;
 }
 
 #button_localstreams {

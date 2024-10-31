@@ -12,6 +12,7 @@ var tab = 'feed';
 var selectedFolder;
 var downloadFolder;
 var videoActive = false;
+var stickyTitle = false;
 var videoLocation = 'remote';
 var channelFeed = []
 let touchstartY = 0;
@@ -1187,7 +1188,7 @@ function playVideo(id, trycount) {
                 let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
 
                 // overlay title
-                let infotext = title + `<br/>` + author;
+                let infotext = title + `<br/>` + author + ", " + published;
                 
 
                 // overlay extra buttons for sharing and liking
@@ -1226,7 +1227,7 @@ function playVideo(id, trycount) {
                     $("#channelimage").html(channelimage);
                     $("#videotitle").html(infotext);
                     $("#extrabuttons").html(extrabuttons);
-                    $("#videodescription").html("<h3>" + infotext + ", " + published + "</h3>" + descriptionHtml);
+                    $("#videodescription").html(descriptionHtml);
                     videoResize()
                     $("#videofile").show();
                     
@@ -1337,6 +1338,8 @@ function videoResize() {
     var seektop = 0;
     var seeksize = 0;
 
+    var titletop = 0;
+    stickyTitle = false;
     var descriptiontop = 0;
 
     if (bwidth > bheight) { orientation = 'landscape'; }
@@ -1403,6 +1406,7 @@ function videoResize() {
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
+            titletop = 0;
             descriptiontop = (videoheight * 1.2);
             break;
         case "square":
@@ -1412,6 +1416,11 @@ function videoResize() {
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
+            if (orientation == 'portrait') {
+                titletop = videoheight;
+            } else {
+                titletop = 0;
+            }
             descriptiontop = (videoheight * 1.2);
             break;
         case "landscape":
@@ -1421,6 +1430,12 @@ function videoResize() {
             playtop = (videoheight / 2) - (playsize / 2);
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
+            if (orientation == 'portrait') {
+                titletop = videoheight;
+                stickyTitle = true;
+            } else {
+                titletop = 0;
+            }
             descriptiontop = (videoheight * 1.2);
             break;
     }
@@ -1485,6 +1500,17 @@ function videoResize() {
     $("#seekarea").css("top", (videoheight - (extrasize * 2)) + "px")
     $("#seektext").css("line-height", (extrasize * 2) + "px")
     $("#seektext").css("font-size", (extrasize) + "px")
+
+    $("#channelimage").css("top", titletop + "px");
+    $("#videotitle").css("top", titletop + "px");
+    if (stickyTitle) {
+        $("#channelimage").show();
+        $("#videotitle").show();
+    }
+    else {
+        $("#channelimage").hide();
+        $("#videotitle").hide();
+    }
 
     if (videotype != "portrait" && orientation == "portrait") {
         $("#videodescription").css("top", descriptiontop + "px");
@@ -1620,6 +1646,8 @@ function showControls() {
         let video = document.getElementById("videofile");
 
         $(".videocontrols").show();
+        $("#channelimage").show();
+        $("#videotitle").show();
         if (videoLocation == 'local') {
             $("#extrabuttons").hide();
         }
@@ -1643,6 +1671,10 @@ function showControls() {
 
 function hideControls() {
     $(".videocontrols").hide();
+    if (stickyTitle == false) {
+        $("#channelimage").hide();
+        $("#videotitle").hide();
+    }
 }
 
 function syncAudio() {
