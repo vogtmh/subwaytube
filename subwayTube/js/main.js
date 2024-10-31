@@ -1407,6 +1407,7 @@ function videoResize() {
             seektop = (videoheight / 2) - (seeksize / 2);
             extratop = (videoheight * 0.25);
             titletop = 0;
+            titlesize = extrasize;
             descriptiontop = (videoheight * 1.2);
             break;
         case "square":
@@ -1418,10 +1419,14 @@ function videoResize() {
             extratop = (videoheight * 0.25);
             if (orientation == 'portrait') {
                 titletop = videoheight;
+                titlesize = extrasize * 2;
+                descriptiontop = (videoheight + (titlesize * 3));
+                stickyTitle = true;
             } else {
                 titletop = 0;
+                titlesize = extrasize;
+                descriptiontop = (videoheight * 1.2);
             }
-            descriptiontop = (videoheight * 1.2);
             break;
         case "landscape":
             playsize = videoheight / 3;
@@ -1432,11 +1437,14 @@ function videoResize() {
             extratop = (videoheight * 0.25);
             if (orientation == 'portrait') {
                 titletop = videoheight;
+                titlesize = extrasize * 2;
+                descriptiontop = (videoheight + (titlesize * 3) + 10);
                 stickyTitle = true;
             } else {
                 titletop = 0;
+                titlesize = extrasize;
+                descriptiontop = (videoheight * 1.2);
             }
-            descriptiontop = (videoheight * 1.2);
             break;
     }
 
@@ -1483,13 +1491,13 @@ function videoResize() {
         $("#downloadbutton").css("height", extrasize + "px")
     }
 
-    $("#channelimage").css("height", (extrasize * 3) + "px")
-    $("#channelimage").css("width", (extrasize * 3) + "px")
+    $("#channelimage").css("height", (titlesize * 3) + "px")
+    $("#channelimage").css("width", (titlesize * 3) + "px")
 
-    $("#videotitle").css("left", (extrasize * 3) + "px")
-    $("#videotitle").css("height", (extrasize * 3) + "px")
-    $("#videotitle").css("right", (extrasize * 3) + "px")
-    $("#videotitle").css("font-size", (extrasize / 1.5 ) + "px")
+    $("#videotitle").css("left", (titlesize * 3) + "px")
+    $("#videotitle").css("height", (titlesize * 3) + "px")
+    $("#videotitle").css("right", (titlesize * 3) + "px")
+    $("#videotitle").css("font-size", (titlesize / 1.5 ) + "px")
 
     $("#closevideo").css("height", (extrasize * 3) + "px")
     $("#closevideo").css("width", (extrasize * 3) + "px")

@@ -8,23 +8,17 @@
                   <div style="text-align: left; line-height: 150%;">
                     <div>subwayTube v` + appstring + ` by mavodev <br/> powered by <a href="https://invidious.io/" target="_blank">Invidious</a></div>
                     <div id="setting_serverlist"></div>`;
-    if (use_customserver == 'true') {
-        output += `<div id="setting_customserver"><button id="button_customserver" onclick="applyCustomserver()">Remove custom server</button></div>`;
-    }
-    else { 
-        output += `<div id="setting_customserver"></div>`;
-    }
     output += `<div id="input_customserver">
-                        <input type="text" id="text_customserver" name="text_customserver" size="15" />
-                        <button id="apply_customserver" onclick="applyCustomserver()">Apply</button>
-                        <button id="cancel_customserver" onclick="cancelCustomserver()">Cancel</button>
+                        <input type="text" id="text_customserver" name="text_customserver" size="15" /><br/>
+                        <div id="apply_customserver" class="wbutton" onclick="applyCustomserver()">Apply</div>
+                        <div id="cancel_customserver" class="wbutton" onclick="cancelCustomserver()">Cancel</div>
                     </div>
                     <div id="setting_serverstats"></div>`;
     if (use_localstreams == 'false') {
-        output += `<div id="setting_localstreams"><button id="button_localstreams" onclick="enableLocalstreams()">Use streams from instance</button></div>`;
+        output += `<div id="setting_localstreams"><div id="button_localstreams" class="wbutton" onclick="enableLocalstreams()">Use streams from instance</div></div>`;
     }
     else {
-        output += `<div id="setting_localstreams"><button id="button_localstreams" onclick="disableLocalstreams()">Use streams from Google</button></div>`;
+        output += `<div id="setting_localstreams"><div id="button_localstreams" class="wbutton" onclick="disableLocalstreams()">Use streams from Google</div></div>`;
     }
     output +=      `<div style="width: 100%;height:30px"></div>
                     <table style="width:100%;">
@@ -38,7 +32,7 @@
                     <div id="settingstext"></div>
                     <div id="downloadpath">Download folder: <br/>`+ downloadFolder + ` <button onclick="selectDownloadPath()">Change</button></div>
                     <div id="streamquality"></div>
-                    <div id="applybutton" style='display:none;' onclick='applySettings()'>Apply</div>
+                    <div id="spacer"></div>
                   </div>`
     if (tab == 'settings') {
         $('#content').html(output);
@@ -53,18 +47,34 @@ function hideSettings() {
     $("#settingsmenu").hide();
 }
 
-function applySettings() {
-    if (use_customserver == 'false') {
-        let servername = $("#servers").val()
-        if (servername == "custom-server") {
-            getServerlist();
-            inputCustomserver();
-            return;
-        } 
+function selectServer() {
+    let servername = $("#servers").val()
+    if (servername == "custom-server") {
+        inputCustomserver();
+    }
+    else {
+        setServer(servername, 'list');
+    }
+}
+
+function setServer(servername, type) {
+    if (type == 'custom') {
+        localStorage.use_customserver = true;
+        use_customserver = localStorage.use_customserver;
         localStorage.invidious_server = 'https://' + servername;
         server = localStorage.invidious_server;
     }
+    else {
+        localStorage.use_customserver = false;
+        use_customserver = localStorage.use_customserver;
+        localStorage.invidious_server = 'https://' + servername;
+        server = localStorage.invidious_server;
+    }
+    getServerlist();
     showServerstats()
+}
+
+function applySettings() {
     let quality = $("#streamqualityselect").val()
     localStorage.streamquality = quality;
     streamquality = localStorage.streamquality;
@@ -73,16 +83,12 @@ function applySettings() {
 
 function activateAlternative(alternative) {
     console.log('Server ' + server + ' unavailable, switching to ' + alternative);
-    let servername = alternative;
-    localStorage.invidious_server = 'https://' + alternative;
-    server = localStorage.invidious_server;
-    showServerstats()
+    setServer(alternative, 'list');
 }
 
 function inputCustomserver() {
     let hostname = server.replace('https://', '');
     $("#text_customserver").val(hostname);
-    $("#setting_customserver").hide();
     $("#input_customserver").show();
     $("#text_customserver").focus();
     $('#text_customserver').keydown(function (event) {
@@ -95,33 +101,25 @@ function inputCustomserver() {
 
 function applyCustomserver() {
     var customserver = $("#text_customserver").val();
-    if (customserver == '') {
-        localStorage.use_customserver = false;
-        use_customserver = localStorage.use_customserver;
-        getServerlist();
-    }
-    else {
+    if (customserver != '') {
         localStorage.use_customserver = true;
         use_customserver = localStorage.use_customserver;
-        activateAlternative(customserver);
-        $("#servers").hide();
-        $("#servers_label").hide();
-        $("#setting_customserver").show();
+        setServer(customserver, 'custom');
     }
     $("#input_customserver").hide();
 }
 
 function cancelCustomserver() {
-    $("#setting_customserver").show();
     $("#input_customserver").hide();
+    getServerlist();
 }
 
 function updateLocalstreambutton() {
     if (use_localstreams == 'false') {
-        $("#setting_localstreams").html('<button id="button_localstreams" onclick="enableLocalstreams()">Use streams from instance</button>');
+        $("#setting_localstreams").html('<div id="button_localstreams" class="wbutton" onclick="enableLocalstreams()">Use streams from instance</div>');
     }
     else {
-        $("#setting_localstreams").html('<button id="button_localstreams" onclick="disableLocalstreams()">Use streams from Google</button></div>');
+        $("#setting_localstreams").html('<div id="button_localstreams" class="wbutton" onclick="disableLocalstreams()">Use streams from Google</div>');
     }
 }
 
@@ -151,7 +149,7 @@ function getServerlist() {
         success(response) {
             serverlist = {}
             var html = `<label for="servers" id="servers_label">Serverlist:</label><br/>
-                        <select name="servers" id="servers" onchange="applySettings()">`;
+                        <select name="servers" id="servers" onchange="selectServer()">`;
             var stats;
             var serveravailable = false;
             var alternativeserver = server;
@@ -189,22 +187,24 @@ function getServerlist() {
                     }
                 }
             }
-
-            html += '<option value="custom-server">Custom server ..</option>'
+            if (use_customserver == 'true') {
+                html += '<option value="custom-server" selected>Custom server ..</option>'
+            }
+            else {
+                html += '<option value="custom-server">Custom server ..</option>'
+            }
+            
             html += `</select>`
             if (serveravailable == false && use_customserver == 'false') {
                 activateAlternative(alternativeserver);
             }
             if (tab == 'settings') {
-                if (use_customserver == 'false') {
-                    $("#setting_serverlist").html(html);
-                    let servers_width = $("#servers").width();
-                    if (servers_width > 120) {
-                        $("#button_customserver").width(servers_width);
-                        $("#text_customserver").width(servers_width);
-                    }
-                    console.log('[Serverlist] updated.')
+                $("#setting_serverlist").html(html);
+                let servers_width = $("#servers").width();
+                if (servers_width > 120) {
+                    $("#text_customserver").width(servers_width);
                 }
+                console.log('[Serverlist] updated.')
                 showServerstats()
             }
         },
@@ -221,16 +221,6 @@ function showServerstats() {
             hostname = hostname + ' (custom)';
         }
         $("#setting_serverstats").html('Currently using: ' + hostname);
-        if (use_customserver == 'true') {
-            $("#text_customserver").val('');
-            $("#setting_customserver").html('<button id="button_customserver" onclick="applyCustomserver()">Remove custom server</button>');
-        }
-        else {
-            $("#setting_customserver").html('');
-        }
-        /*else {
-            $("#setting_customserver").html('<button id="button_customserver" onclick="inputCustomserver()">Set custom server</button>');
-        }*/
     }
     /*
     try {

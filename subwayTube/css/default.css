@@ -610,7 +610,6 @@ a:hover {
 }
 
 #apply_customserver {
-    margin-left: 10px;
     font-size: 18px;
 }
 
@@ -620,7 +619,8 @@ a:hover {
 
 #input_customserver {
     margin-top: 5px;
-    height: auto;
+    height: 88px;
+    width: 100%;
     display: none;
     font-size: 18px;
 }
@@ -631,6 +631,9 @@ a:hover {
 
 #button_localstreams {
     font-size: 18px;
+    width: auto;
+    padding-right: 10px;
+    padding-left: 10px;
 }
 
 #settingstext {
@@ -663,22 +666,22 @@ a:hover {
     width: 100%;
 }
 
-#applybutton {
-    position: absolute;
-    bottom: 15%;
-    left: 5%;
+.wbutton {
     width: 25%;
     height: 38px;
     margin-top: 8px;
+    margin-right: 10px;
+    margin-bottom: 8px;
     font-size: 16px;
     line-height: 38px;
     text-align: center;
-    background-color: #555;
+    background-color: #333;
     cursor: pointer;
+    float:left;
 }
 
-#applybutton:hover {
-    background-color: #777;
+.wbutton:hover {
+    background-color: #555;
 }
 
 #cancelbutton {
