@@ -23,6 +23,7 @@ let feedcontent = '';
 let feedtimestamp = (new Date).getTime();
 var streamquality;
 var audiosyncID;
+var systemMediaTransportControls;
 
 // Random GUID I created, just to ensure I'm updating the same old entry
 var downloadsFolderToken = "932a43b0-37f8-4553-8d4b-ad94f5d280dc";
@@ -1624,6 +1625,49 @@ function closeVideoplayer() {
     videoActive = false;
 }
 
+function initializeTransportcontrols() {
+    // Get the system-wide SystemMediaTransportControls
+    systemMediaTransportControls = Windows.Media.SystemMediaTransportControls.getForCurrentView();
+
+    // Enable SystemMediaTransportControls and specific buttons
+    systemMediaTransportControls.isEnabled = true;
+    systemMediaTransportControls.isPlayEnabled = true;
+    systemMediaTransportControls.isPauseEnabled = true;
+
+    // Register for the buttonPressed event
+    systemMediaTransportControls.addEventListener("buttonpressed", function (event) {
+        switch (event.button) {
+            case Windows.Media.SystemMediaTransportControlsButton.play:
+                try {
+                    toggleVideo();
+                }
+                catch (e) {
+                    console.log('Could not start video after play button press.')
+                }
+                break;
+            case Windows.Media.SystemMediaTransportControlsButton.pause:
+                try {
+                    toggleVideo();
+                }
+                catch (e) {
+                    console.log('Could not pause video after pause button press.')
+                }
+                break;
+            case Windows.Media.SystemMediaTransportControlsButton.next:
+                console.log("Next button pressed.");
+                forwardVideo();
+                break;
+            case Windows.Media.SystemMediaTransportControlsButton.previous:
+                console.log("Previous button pressed.");
+                rewindVideo();
+                break;
+            default:
+                console.log("Other button pressed.");
+                break;
+        }
+    });
+}
+
 function formatDuration(seconds) {
     seconds = Math.round(seconds);
     let hours = 0;
@@ -2106,5 +2150,6 @@ $(document).ready(function () {
     loadHistory();
     loadSearchHistory();
     loadDownloadHistory();
+    initializeTransportcontrols();
     setInterval(syncAudio, 30000);
 });
