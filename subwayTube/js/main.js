@@ -1156,91 +1156,98 @@ function playVideo(id, trycount) {
         url: apiurl,
         type: 'GET',
         success(response) {
-            let type = response.type;
-            if (type != 'livestream') {
-                let title = response.title;
-                let author = response.author;
-                let authorId = response.authorId;
-                let authorThumbnail = response.authorThumbnails['2'].url;
-                let authorThumbnailString = encodeURIComponent(authorThumbnail)
-                let published = response.publishedText;
-                var stream = response.formatStreams[0];
-                var descriptionHtml = response.descriptionHtml;
-                var audiostream = '';
-                if (streamquality != '360p') {
-                    console.log('Looking for adaptive format..')
+            try {
+                let type = response.type;
+                if (type != 'livestream') {
+                    let title = response.title;
+                    let author = response.author;
+                    let authorId = response.authorId;
+                    let authorThumbnail = response.authorThumbnails['2'].url;
+                    let authorThumbnailString = encodeURIComponent(authorThumbnail)
+                    let published = response.publishedText;
+                    var stream = response.formatStreams[0];
+                    var descriptionHtml = response.descriptionHtml;
+                    var audiostream = '';
+                    if (streamquality != '360p') {
+                        console.log('Looking for adaptive format..')
+                        $.each(response.adaptiveFormats, function (i, format) {
+                            if (format.resolution == streamquality && format.encoding == "h264") {
+                                stream = format;
+                                console.log(format);
+                                return false; // stops the loop
+                            }
+                        });
+                    }
                     $.each(response.adaptiveFormats, function (i, format) {
-                        if (format.resolution == streamquality && format.encoding == "h264") {
-                            stream = format;
-                            console.log(format);
+                        if (format.container == 'm4a' && audiostream == '') {
+                            audiostream = format;
+                            return false;
+                        }
+                    });
+
+                    // channelimage
+                    let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
+
+                    // overlay title
+                    let infotext = title + `<br/>` + author + ", " + published;
+
+
+                    // overlay extra buttons for sharing and liking
+                    let sharelink = 'https://youtu.be/' + id
+                    var likeimage = '';
+                    if (isSubscribed(authorId)) {
+                        likeimage = 'images/heart-filled-red.png';
+                    }
+                    else {
+                        likeimage = 'images/heart-empty.png';
+                    }
+                    let likebuttons = `<div id="likebutton" class="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div>`;
+                    let videourl = stream.url;
+                    var downloadurl = response.formatStreams[0].url;
+                    let videoname = (title + '.mp4').replace(/['/\\?#%*:|"<>]+/g, '-')
+                    let name = title.replace(/['/\\?#%*:|"<>]+/g, '-')
+
+                    var image = '';
+                    $.each(response.videoThumbnails, function (i, thumbnail) {
+                        if (thumbnail.quality == "medium") {
+                            image = thumbnail.url;
                             return false; // stops the loop
                         }
                     });
-                }
-                $.each(response.adaptiveFormats, function (i, format) {
-                    if (format.container == 'm4a' && audiostream == '') {
-                        audiostream = format;
-                        return false;
+
+                    let sharebuttons = `<div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div>`;
+                    let downloadbuttons = `<div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `","` + name + `","` + image + `","` + author + `","` + authorId + `","` + authorThumbnail + `")'><img src="images/download.png"></div>`;
+
+                    if (videoActive && playindex == videoindex) {
+                        $('#videofile').attr('src', stream.url);
+                        $('#audiofile').attr('src', audiostream.url);
+                        $("#loadingimage").hide();
+
+                        $("#channelimage").html(channelimage);
+                        $("#videotitle").html(infotext);
+                        $("#likespace").html(likebuttons);
+                        $("#sharespace").html(sharebuttons);
+                        $("#downloadspace").html(downloadbuttons);
+                        $("#videodescription").html(descriptionHtml);
+                        videoResize()
+                        $("#videofile").show();
+
+                        addHistoryItem(id, title, image, authorId, author);
                     }
-                });
 
-                // channelimage
-                let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
-
-                // overlay title
-                let infotext = title + `<br/>` + author + ", " + published;
-                
-
-                // overlay extra buttons for sharing and liking
-                let sharelink = 'https://youtu.be/' + id
-                var likeimage = '';
-                if (isSubscribed(authorId)) {
-                    likeimage = 'images/heart-filled-red.png';
                 }
                 else {
-                    likeimage = 'images/heart-empty.png';
-                }
-                let extrabuttons = `<table style="width:100%; height:100%;"><tr>`;
-                extrabuttons += `<td><div id="likebutton" class="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div></td></tr>`;
-                let videourl = stream.url;
-                var downloadurl = response.formatStreams[0].url;
-                let videoname = (title + '.mp4').replace(/['/\\?#%*:|"<>]+/g, '-')
-                let name = title.replace(/['/\\?#%*:|"<>]+/g, '-')
-
-                var image = '';
-                $.each(response.videoThumbnails, function (i, thumbnail) {
-                    if (thumbnail.quality == "medium") {
-                        image = thumbnail.url;
-                        return false; // stops the loop
+                    if (videoActive) {
+                        $("#videotitle").css("margin-top", "40%")
+                        $("#videotitle").html('Livestreams are not supported yet.')
+                        $("#loadingimage").hide();
                     }
-                });
-
-                extrabuttons += `<tr><td style="width:20%"><div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div></td></tr>
-                             <tr><td><div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `","` + name + `","` + image + `","` + author + `","` + authorId + `","` + authorThumbnail + `")'><img src="images/download.png"></div></td></tr>`;
-                extrabuttons += `</table>`;
-
-                if (videoActive && playindex == videoindex) {
-                    $('#videofile').attr('src', stream.url);
-                    $('#audiofile').attr('src', audiostream.url);
-                    $("#loadingimage").hide();
-
-                    $("#channelimage").html(channelimage);
-                    $("#videotitle").html(infotext);
-                    $("#extrabuttons").html(extrabuttons);
-                    $("#videodescription").html(descriptionHtml);
-                    videoResize()
-                    $("#videofile").show();
-                    
-                    addHistoryItem(id, title, image, authorId, author);
                 }
-                
             }
-            else {
-                if (videoActive) {
-                    $("#videotitle").css("margin-top", "40%")
-                    $("#videotitle").html('Livestreams are not supported yet.')
-                    $("#loadingimage").hide();
-                }
+            catch (e) {
+                $("#loadingimage").hide();
+                $("#errortext").html('Could not fetch video details from server. Please try again later or switch to another server.');
+                $("#errortext").show();
             }
         },
         error(jqXHR, status, errorThrown) {
@@ -1293,7 +1300,7 @@ function playDownload(fileName, title, author, authorId, authorThumbnail) {
 
     let extrabuttons = `<div id="likebutton" class="likebutton"><img src="images/play.png"></div>
                         <div id="sharebutton"><img src="images/play.png"></div>
-                        <div id="downloadbutton")'><img src="images/play.png"></div>`;
+                        <div id="downloadbutton"><img src="images/play.png"></div>`;
     if (videoActive) {
         try {
             Windows.Storage.StorageFile.getFileFromPathAsync(videosource).then(function (file) {
@@ -1340,6 +1347,8 @@ function videoResize() {
 
     var titletop = 0;
     stickyTitle = false;
+    var buttontop = 0;
+    var buttonleft = 0;
     var descriptiontop = 0;
 
     if (bwidth > bheight) { orientation = 'landscape'; }
@@ -1408,6 +1417,7 @@ function videoResize() {
             extratop = (videoheight * 0.25);
             titletop = 0;
             titlesize = extrasize;
+            titleright = (titlesize * 3);
             descriptiontop = (videoheight * 1.2);
             break;
         case "square":
@@ -1419,12 +1429,15 @@ function videoResize() {
             extratop = (videoheight * 0.25);
             if (orientation == 'portrait') {
                 titletop = videoheight;
-                titlesize = extrasize * 2;
-                descriptiontop = (videoheight + (titlesize * 3));
+                titlesize = extrasize;
+                titleright = 0;
+                buttontop = (videoheight + (titlesize * 3) + 25);
+                descriptiontop = (videoheight + (titlesize * 4) + 70);
                 stickyTitle = true;
             } else {
                 titletop = 0;
                 titlesize = extrasize;
+                titleright = (titlesize * 3);
                 descriptiontop = (videoheight * 1.2);
             }
             break;
@@ -1438,11 +1451,14 @@ function videoResize() {
             if (orientation == 'portrait') {
                 titletop = videoheight;
                 titlesize = extrasize * 2;
-                descriptiontop = (videoheight + (titlesize * 3) + 10);
+                titleright = 0;
+                buttontop = (videoheight + (titlesize * 3) + 25);
+                descriptiontop = (videoheight + (titlesize * 4) + 70);
                 stickyTitle = true;
             } else {
                 titletop = 0;
                 titlesize = extrasize;
+                titleright = (titlesize * 3);
                 descriptiontop = (videoheight * 1.2);
             }
             break;
@@ -1477,18 +1493,46 @@ function videoResize() {
     $("#forward").css("margin-right", (seeksize / 2 * -1) + "px")
 
     if (videoLocation == 'local') {
-        $("#extrabuttons").hide();
+        $("#likespace").hide();
+        $("#sharespace").hide();
+        $("#downloadspace").hide();
     }
     else {
+        /*
         $("#extrabuttons").css("height", (videoheight / 2) + "px")
         $("#extrabuttons").css("width", extrasize + "px")
         $("#extrabuttons").css("top", extratop + "px")
-        $("#likebutton").css("width", extrasize + "px")
-        $("#sharebutton").css("width", extrasize + "px")
-        $("#downloadbutton").css("width", extrasize + "px")
-        $("#likebutton").css("height", extrasize + "px")
-        $("#sharebutton").css("height", extrasize + "px")
-        $("#downloadbutton").css("height", extrasize + "px")
+        */
+
+        if (buttontop > 0) {
+            liketop = buttontop;
+            sharetop = buttontop;
+            downloadtop = buttontop;
+            $("#likespace").css("left", "25%");
+            $("#likespace").css("margin-left", "-" + titlesize + "px");
+            $("#sharespace").css("left", "50%");
+            $("#sharespace").css("margin-left", "-" + titlesize + "px");
+            $("#downloadspace").css("left", "75%");
+            $("#downloadspace").css("margin-left", "-" + titlesize + "px");
+        }
+        else {
+            liketop = (videoheight * 0.25) - extrasize;
+            sharetop = (videoheight * 0.5) - extrasize;
+            downloadtop = (videoheight * 0.75) - extrasize;
+            $("#likespace").css("left", "5%");
+            $("#sharespace").css("left", "5%");
+            $("#downloadspace").css("left", "5%");
+        }
+
+        $("#likespace").css("top", liketop + "px");
+        $("#sharespace").css("top", sharetop + "px");
+        $("#downloadspace").css("top", downloadtop + "px");
+        $("#likebutton").css("width", titlesize + "px")
+        $("#sharebutton").css("width", titlesize + "px")
+        $("#downloadbutton").css("width", titlesize + "px")
+        $("#likebutton").css("height", titlesize + "px")
+        $("#sharebutton").css("height", titlesize + "px")
+        $("#downloadbutton").css("height", titlesize + "px")
     }
 
     $("#channelimage").css("height", (titlesize * 3) + "px")
@@ -1496,7 +1540,7 @@ function videoResize() {
 
     $("#videotitle").css("left", (titlesize * 3) + "px")
     $("#videotitle").css("height", (titlesize * 3) + "px")
-    $("#videotitle").css("right", (titlesize * 3) + "px")
+    $("#videotitle").css("right", titleright + "px")
     $("#videotitle").css("font-size", (titlesize / 1.5 ) + "px")
 
     $("#closevideo").css("height", (extrasize * 3) + "px")
@@ -1514,10 +1558,16 @@ function videoResize() {
     if (stickyTitle) {
         $("#channelimage").show();
         $("#videotitle").show();
+        $("#likespace").show();
+        $("#sharespace").show();
+        $("#downloadspace").show();
     }
     else {
         $("#channelimage").hide();
         $("#videotitle").hide();
+        $("#likespace").hide();
+        $("#sharespace").hide();
+        $("#downloadspace").hide();
     }
 
     if (videotype != "portrait" && orientation == "portrait") {
@@ -1657,7 +1707,14 @@ function showControls() {
         $("#channelimage").show();
         $("#videotitle").show();
         if (videoLocation == 'local') {
-            $("#extrabuttons").hide();
+            $("#likespace").hide();
+            $("#sharespace").hide();
+            $("#downloadspace").hide();
+        }
+        else {
+            $("#likespace").show();
+            $("#sharespace").show();
+            $("#downloadspace").show();
         }
         if (timeoutid) {
             clearTimeout(timeoutid);
@@ -1682,6 +1739,9 @@ function hideControls() {
     if (stickyTitle == false) {
         $("#channelimage").hide();
         $("#videotitle").hide();
+        $("#likespace").hide();
+        $("#sharespace").hide();
+        $("#downloadspace").hide();
     }
 }
 

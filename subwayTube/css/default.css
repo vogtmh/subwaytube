@@ -337,6 +337,41 @@ a:hover {
     height:50%;
 }
 
+#likespace {
+    position: absolute;
+    top: 25%;
+    left: 1%;
+    opacity: 0.8;
+    font-size: 12px;
+    width: 32px;
+    text-align: left;
+    font-weight: bold;
+    width: 32px;
+}
+#sharespace {
+    position: absolute;
+    top: 25%;
+    left: 1%;
+    opacity: 0.8;
+    font-size: 12px;
+    width: 32px;
+    text-align: left;
+    font-weight: bold;
+    width: 32px;
+}
+
+#downloadspace {
+    position: absolute;
+    top: 25%;
+    left: 1%;
+    opacity: 0.8;
+    font-size: 12px;
+    width: 32px;
+    text-align: left;
+    font-weight: bold;
+    width: 32px;
+}
+
 #errortext {
     position: absolute;
     top: 40%;
