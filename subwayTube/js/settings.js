@@ -32,6 +32,7 @@
                     <div id="settingstext"></div>
                     <div id="downloadpath">Download folder: <br/>`+ downloadFolder + ` <button onclick="selectDownloadPath()">Change</button></div>
                     <div id="streamquality"></div>
+                    <button onclick='inputCustomserver()'>Set custom server</button>
                     <div id="spacer"></div>
                   </div>`
     if (tab == 'settings') {
