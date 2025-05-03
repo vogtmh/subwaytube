@@ -232,7 +232,7 @@ function showFeed() {
 function printFeedHeader(trycount) {
     $("#topsettings").show();
     applySizing();
-    let requesturl = server + '/api/v1/trending'
+    let requesturl = server + '/api/v1/popular'
     $(".navbutton").css("background-color", "#111");
     $("#nav_feed").css("background-color", "Highlight");
     let search = ``;
@@ -287,7 +287,7 @@ function getFeed(trycount) {
         getChannelsFeed(refreshindex);
     }
     else {
-        var requesturl = server + '/api/v1/trending?hl=en-US'
+        var requesturl = server + '/api/v1/popular?hl=en-US'
         $.ajax({
             url: requesturl,
             type: 'GET',
@@ -316,13 +316,15 @@ function getFeed(trycount) {
                 applySizing();
             },
             error(jqXHR, status, errorThrown) {
-                if (trycount < 11) {
+                if (trycount < 1) {
                     console.log('failed to fetch ' + requesturl + '. Will retry in 2s ..')
                     $('#feed').html('failed to fetch ' + requesturl + '. Will retry in 2s ..');
                     trycount++;
                     setTimeout(getFeed(trycount), 2000);
                 }
                 else {
+                    console.log(jqXHR)
+                   
                     console.log('failed to fetch ' + requesturl + '. Tried it for 10 times.')
                     $('#feed').html('failed to fetch ' + requesturl + '. Tried it for 10 times.');
                 }
@@ -1252,7 +1254,7 @@ function playVideo(id, trycount) {
             }
         },
         error(jqXHR, status, errorThrown) {
-            if (trycount < 11) {
+            if (trycount < 1) {
                 if (videoActive) {
                     console.log('failed to fetch ' + apiurl + '. Will retry in 2s ..')
                     $("#videotitle").html('failed to fetch <br/>' + apiurl + '. Will retry in 2s ..')
