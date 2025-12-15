@@ -6,21 +6,12 @@
 
     var output = `<h2 style="text-align: left;">Settings</h2>
                   <div style="text-align: left; line-height: 150%;">
-                    <div>subwayTube v` + appstring + ` by mavodev <br/> powered by <a href="https://invidious.io/" target="_blank">Invidious</a></div>
+                    <div>subwayTube v` + appstring + ` by mavodev <br/> powered by InnerTube</div>
                     <div id="setting_serverlist"></div>`;
-    output += `<div id="input_customserver">
-                        <input type="text" id="text_customserver" name="text_customserver" size="15" /><br/>
-                        <div id="apply_customserver" class="wbutton" onclick="applyCustomserver()">Apply</div>
-                        <div id="cancel_customserver" class="wbutton" onclick="cancelCustomserver()">Cancel</div>
-                    </div>
-                    <div id="setting_serverstats"></div>`;
-    if (use_localstreams == 'false') {
-        output += `<div id="setting_localstreams"><div id="button_localstreams" class="wbutton" onclick="enableLocalstreams()">Use streams from instance</div></div>`;
-    }
-    else {
-        output += `<div id="setting_localstreams"><div id="button_localstreams" class="wbutton" onclick="disableLocalstreams()">Use streams from Google</div></div>`;
-    }
-    output +=      `<div style="width: 100%;height:30px"></div>
+
+    // Server list removed as InnerTube connects directly to YouTube
+
+    output += `<div style="width: 100%;height:30px"></div>
                     <table style="width:100%;">
                     <tr>
                       <td style="width:33%"><div class="settingsbutton" id="backupbutton" onclick='createBackup()'><img src="images/backup.png" /><br/>Backup</div></td>
@@ -32,7 +23,6 @@
                     <div id="settingstext"></div>
                     <div id="downloadpath">Download folder: <br/>`+ downloadFolder + ` <button onclick="selectDownloadPath()">Change</button></div>
                     <div id="streamquality"></div>
-                    <button onclick='inputCustomserver()'>Set custom server</button>
                     <div id="spacer"></div>
                   </div>`
     if (tab == 'settings') {
@@ -40,7 +30,6 @@
         //getDownloads();
     }
 
-    getServerlist()
     getStreamquality()
 }
 
@@ -48,32 +37,6 @@ function hideSettings() {
     $("#settingsmenu").hide();
 }
 
-function selectServer() {
-    let servername = $("#servers").val()
-    if (servername == "custom-server") {
-        inputCustomserver();
-    }
-    else {
-        setServer(servername, 'list');
-    }
-}
-
-function setServer(servername, type) {
-    if (type == 'custom') {
-        localStorage.use_customserver = true;
-        use_customserver = localStorage.use_customserver;
-        localStorage.invidious_server = 'https://' + servername;
-        server = localStorage.invidious_server;
-    }
-    else {
-        localStorage.use_customserver = false;
-        use_customserver = localStorage.use_customserver;
-        localStorage.invidious_server = 'https://' + servername;
-        server = localStorage.invidious_server;
-    }
-    getServerlist();
-    showServerstats()
-}
 
 function applySettings() {
     let quality = $("#streamqualityselect").val()
@@ -82,162 +45,6 @@ function applySettings() {
     showServerstats()
 }
 
-function activateAlternative(alternative) {
-    console.log('Server ' + server + ' unavailable, switching to ' + alternative);
-    setServer(alternative, 'list');
-}
-
-function inputCustomserver() {
-    let hostname = server.replace('https://', '');
-    $("#text_customserver").val(hostname);
-    $("#input_customserver").show();
-    $("#text_customserver").focus();
-    $('#text_customserver').keydown(function (event) {
-        if (event.which === 13) {
-            $("#text_customserver").blur()
-            applyCustomserver()
-        }
-    });
-}
-
-function applyCustomserver() {
-    var customserver = $("#text_customserver").val();
-    if (customserver != '') {
-        localStorage.use_customserver = true;
-        use_customserver = localStorage.use_customserver;
-        setServer(customserver, 'custom');
-    }
-    $("#input_customserver").hide();
-}
-
-function cancelCustomserver() {
-    $("#input_customserver").hide();
-    getServerlist();
-}
-
-function updateLocalstreambutton() {
-    if (use_localstreams == 'false') {
-        $("#setting_localstreams").html('<div id="button_localstreams" class="wbutton" onclick="enableLocalstreams()">Use streams from instance</div>');
-    }
-    else {
-        $("#setting_localstreams").html('<div id="button_localstreams" class="wbutton" onclick="disableLocalstreams()">Use streams from Google</div>');
-    }
-}
-
-function enableLocalstreams() {
-    localStorage.use_localstreams = true;
-    use_localstreams = localStorage.use_localstreams;
-    updateLocalstreambutton();
-}
-
-function disableLocalstreams() {
-    localStorage.use_localstreams = false;
-    use_localstreams = localStorage.use_localstreams;
-    updateLocalstreambutton();
-}
-
-function clearSettingstext() {
-    $("#settingstext").html('')
-}
-
-function getServerlist() {
-    let requesturl = 'https://api.invidious.io/instances.json?pretty=1&sort_by=health'
-
-    $.ajax({
-        url: requesturl,
-        type: 'GET',
-        dataType: 'json',
-        success(response) {
-            serverlist = {}
-            var html = `<label for="servers" id="servers_label">Serverlist:</label><br/>
-                        <select name="servers" id="servers" onchange="selectServer()">`;
-            var stats;
-            var serveravailable = false;
-            var alternativeserver = server;
-
-            for (var i = 0; i < response.length; i++) {
-                var element = response[i];
-                let servername = element[0]
-                let serverurl = 'https://' + servername
-                let attributes = element[1]
-                let type = attributes.type;
-                let cors = attributes.cors;
-                let api = attributes.api;
-
-                if (type == 'https' && api == true) { //&& cors == true
-                    try {
-                        if (attributes.region) {
-                            let region = attributes.region;
-                        }
-                        if (attributes.monitor) {
-                            let uptime = attributes.monitor.uptime
-                        }
-                        if (server == serverurl) {
-                            serveravailable = true;
-                            html += '<option value="' + servername + '" selected>' + servername + '</option>'
-                        }
-                        else {
-                            html += '<option value="' + servername + '">' + servername + '</option>'
-                        }
-                        serverlist[servername] = { "name": servername, "url": serverurl, "attributes": attributes }
-                        alternativeserver = servername;
-                    }
-                    catch (e) {
-                        console.log(element);
-                        console.log(e.message);
-                    }
-                }
-            }
-            if (use_customserver == 'true') {
-                html += '<option value="custom-server" selected>Custom server ..</option>'
-            }
-            else {
-                html += '<option value="custom-server">Custom server ..</option>'
-            }
-            
-            html += `</select>`
-            if (serveravailable == false && use_customserver == 'false') {
-                activateAlternative(alternativeserver);
-            }
-            if (tab == 'settings') {
-                $("#setting_serverlist").html(html);
-                let servers_width = $("#servers").width();
-                if (servers_width > 120) {
-                    $("#text_customserver").width(servers_width);
-                }
-                console.log('[Serverlist] updated.')
-                showServerstats()
-            }
-        },
-        error(jqXHR, status, errorThrown) {
-            console.log('failed to fetch ' + requesturl)
-        },
-    });
-}
-
-function showServerstats() {
-    if (tab == 'settings') {
-        let hostname = server.replace('https://', '');
-        if (use_customserver == 'true') {
-            hostname = hostname + ' (custom)';
-        }
-        $("#setting_serverstats").html('Currently using: ' + hostname);
-    }
-    /*
-    try {
-        let servername = $("#servers").val()
-        let attributes = serverlist[servername].attributes
-        let region = attributes.region;
-        let uptime = attributes.monitor.uptime;
-        stats = 'Location: ' + region + ', uptime: ' + uptime;
-        if (tab == 'settings') {
-            $("#setting_serverstats").html(stats);
-        }
-    }
-    catch (e) {
-        $("#setting_serverstats").html('Cannot display serverinfo. Serverlist is unavailable or empty.');
-    }*/
-}
 
 function getStreamquality() {
     let qualities = ['144p', '360p', '720p', '1080p'];
@@ -365,4 +172,8 @@ function clearHistory() {
     console.log('History has been cleared.')
     $("#settingstext").html('History has been cleared.')
     setTimeout(clearSettingstext, 3000)
+}
+
+function clearSettingstext() {
+    $("#settingstext").html('')
 }
