@@ -12,12 +12,14 @@ namespace subwayTube.Services
         private static readonly HttpClient _httpClient = new HttpClient();
 
         // InnerTube API endpoints
-        private const string SearchUrl = "https://www.youtube.com/youtubei/v1/search";
-        private const string PlayerUrl = "https://www.youtube.com/youtubei/v1/player";
+        private const string SearchUrl = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+        private const string PlayerUrl = "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 
-        // Client version strings — update periodically if YouTube changes requirements
-        private const string WebClientVersion = "2.20260601.01.00";
-        private const string AndroidClientVersion = "19.29.37";
+        // Client version strings — from youtubei.js Constants.ts
+        private const string WebClientVersion = "2.20260206.01.00";
+        private const string IosClientVersion = "20.11.6";
+        private const string IosUserAgent = "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)";
+        private const string IosDeviceModel = "iPhone10,4";
 
         static InnerTubeService()
         {
@@ -54,8 +56,8 @@ namespace subwayTube.Services
         }
 
         /// <summary>
-        /// Get a direct 360p stream URL for a video using the InnerTube API (ANDROID client).
-        /// The ANDROID client typically returns direct stream URLs without signature deciphering.
+        /// Get a direct 360p stream URL for a video using the InnerTube API (IOS client).
+        /// The IOS client typically returns direct stream URLs without signature deciphering.
         /// </summary>
         public async Task<string> GetStreamUrlAsync(string videoId)
         {
@@ -65,9 +67,9 @@ namespace subwayTube.Services
                 {
                     ["client"] = new JsonObject
                     {
-                        ["clientName"] = JsonValue.CreateStringValue("ANDROID"),
-                        ["clientVersion"] = JsonValue.CreateStringValue(AndroidClientVersion),
-                        ["androidSdkVersion"] = JsonValue.CreateNumberValue(30),
+                        ["clientName"] = JsonValue.CreateStringValue("IOS"),
+                        ["clientVersion"] = JsonValue.CreateStringValue(IosClientVersion),
+                        ["deviceModel"] = JsonValue.CreateStringValue(IosDeviceModel),
                         ["hl"] = JsonValue.CreateStringValue("en"),
                         ["gl"] = JsonValue.CreateStringValue("US")
                     }
@@ -79,17 +81,16 @@ namespace subwayTube.Services
 
             var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
 
-            // ANDROID client needs a different User-Agent
             var request = new HttpRequestMessage(HttpMethod.Post, PlayerUrl);
             request.Content = content;
-            request.Headers.Remove("User-Agent");
-            request.Headers.TryAddWithoutValidation("User-Agent",
-                "com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip");
+            request.Headers.TryAddWithoutValidation("User-Agent", IosUserAgent);
 
             var response = await _httpClient.SendAsync(request);
-            response.EnsureSuccessStatusCode();
-
             var json = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception("Player API returned " + (int)response.StatusCode + ": " + json.Substring(0, Math.Min(200, json.Length)));
+
             return ParseStreamUrl(json);
         }
 
