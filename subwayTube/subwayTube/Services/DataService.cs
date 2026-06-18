@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Serialization.Json;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using subwayTube.Models;
@@ -16,6 +17,7 @@ namespace subwayTube.Services
         private const string SubscriptionsFile = "subscriptions.json";
         private const string HistoryFile = "history.json";
         private const string SearchHistoryFile = "searchhistory.json";
+        private readonly SemaphoreSlim _saveLock = new SemaphoreSlim(1, 1);
 
         public ObservableCollection<Subscription> Subscriptions { get; private set; } = new ObservableCollection<Subscription>();
         public ObservableCollection<HistoryItem> History { get; private set; } = new ObservableCollection<HistoryItem>();
@@ -124,14 +126,24 @@ namespace subwayTube.Services
 
         private async Task SaveListAsync<T>(List<T> list, string fileName)
         {
-            var serializer = new DataContractJsonSerializer(typeof(List<T>));
-            using (var stream = new MemoryStream())
+            await _saveLock.WaitAsync();
+            try
             {
-                serializer.WriteObject(stream, list);
-                var json = Encoding.UTF8.GetString(stream.ToArray());
-                var folder = ApplicationData.Current.LocalFolder;
-                var file = await folder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(file, json);
+                var serializer = new DataContractJsonSerializer(typeof(List<T>));
+                using (var stream = new MemoryStream())
+                {
+                    serializer.WriteObject(stream, list);
+                    var json = Encoding.UTF8.GetString(stream.ToArray());
+                    var folder = ApplicationData.Current.LocalFolder;
+                    var tempName = fileName + ".tmp";
+                    var tempFile = await folder.CreateFileAsync(tempName, CreationCollisionOption.ReplaceExisting);
+                    await FileIO.WriteTextAsync(tempFile, json);
+                    await tempFile.RenameAsync(fileName, NameCollisionOption.ReplaceExisting);
+                }
+            }
+            finally
+            {
+                _saveLock.Release();
             }
         }
     }
