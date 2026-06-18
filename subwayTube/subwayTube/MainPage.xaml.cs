@@ -264,7 +264,10 @@ namespace subwayTube
             {
                 // Fetch the segment ourselves with IOS User-Agent
                 var response = await _streamClient.GetAsync(args.ResourceUri);
-                args.Result.HttpResponseMessage = response;
+                response.EnsureSuccessStatusCode();
+                var buffer = await response.Content.ReadAsBufferAsync();
+                args.Result.Buffer = buffer;
+                args.Result.ContentType = response.Content.Headers.ContentType?.MediaType ?? "";
             }
             catch
             {
