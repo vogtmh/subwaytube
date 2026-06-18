@@ -22,6 +22,8 @@ namespace subwayTube
         private List<StreamFormat> _currentFormats;
         private string _currentVideoId;
         private bool _ignoreQualityChange;
+        private PlayerResponse _lastPlayerResponse;
+        private string _lastPlayedUrl;
 
         public MainPage()
         {
@@ -30,6 +32,9 @@ namespace subwayTube
 
             // Handle hardware back button (Windows 10 Mobile)
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
+
+            // Handle media playback failures
+            VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
         }
 
         private async void SearchButton_Click(object sender, RoutedEventArgs e)
@@ -161,6 +166,7 @@ namespace subwayTube
                     return;
                 }
 
+                _lastPlayerResponse = playerResponse;
                 PlayerVideoAuthor.Text = author;
                 PlayerLoadingRing.IsActive = false;
             }
@@ -173,6 +179,7 @@ namespace subwayTube
 
         private async System.Threading.Tasks.Task PlayHls(string hlsUrl)
         {
+            _lastPlayedUrl = hlsUrl;
             var hlsSource = await AdaptiveMediaSource.CreateFromUriAsync(new Uri(hlsUrl));
             if (hlsSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
@@ -187,7 +194,40 @@ namespace subwayTube
 
         private void PlayDirectUrl(string url)
         {
+            _lastPlayedUrl = url;
             VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
+        }
+
+        private async void MediaPlayer_MediaFailed(Windows.Media.Playback.MediaPlayer sender, Windows.Media.Playback.MediaPlayerFailedEventArgs args)
+        {
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+            {
+                PlayerLoadingRing.IsActive = false;
+
+                var info = "=== MEDIA PLAYBACK ERROR ===\n\n";
+                info += "Error: " + args.Error + "\n";
+                info += "Message: " + (args.ErrorMessage ?? "(none)") + "\n";
+                info += "Extended code: 0x" + (args.ExtendedErrorCode?.HResult.ToString("X8") ?? "?") + "\n";
+                info += "Played URL: " + (_lastPlayedUrl ?? "null") + "\n";
+                info += "VideoId: " + (_currentVideoId ?? "null") + "\n\n";
+
+                if (_lastPlayerResponse != null)
+                {
+                    info += "HLS URL: " + (_lastPlayerResponse.HlsManifestUrl ?? "null") + "\n";
+                    info += "Formats found: " + _lastPlayerResponse.Formats.Count + "\n";
+                    foreach (var f in _lastPlayerResponse.Formats)
+                    {
+                        info += "  - itag " + f.Itag + " " + f.QualityLabel + " " + f.MimeType
+                            + (f.IsMuxed ? " [muxed]" : "") + " url=" + (f.Url != null ? "yes" : "no") + "\n";
+                    }
+                    info += "\n=== RAW RESPONSE (first 3000 chars) ===\n";
+                    var raw = _lastPlayerResponse.RawJson ?? "";
+                    info += raw.Substring(0, Math.Min(3000, raw.Length));
+                }
+
+                DebugText.Text = info;
+                DebugOverlay.Visibility = Visibility.Visible;
+            });
         }
 
         private async void QualitySelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
