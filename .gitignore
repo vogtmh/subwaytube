@@ -1,3 +1,6 @@
 AppPackages
 bin
 bld
+.vs/
+misc/FreeTube/
+.DS_Store
