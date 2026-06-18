@@ -102,6 +102,7 @@
     <Compile Include="Models\StreamFormat.cs" />
     <Compile Include="Services\DashManifestGenerator.cs" />
     <Compile Include="Services\InnerTubeService.cs" />
+    <Compile Include="Services\IosUserAgentFilter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

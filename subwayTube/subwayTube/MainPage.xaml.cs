@@ -35,10 +35,9 @@ namespace subwayTube
             this.InitializeComponent();
             ResultsList.ItemsSource = _results;
 
-            // HTTP client with IOS User-Agent for downloading streams
-            _streamClient = new Windows.Web.Http.HttpClient();
-            _streamClient.DefaultRequestHeaders.UserAgent.ParseAdd(
-                "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)");
+            // HTTP client with IOS User-Agent filter — ensures ALL requests
+            // (including AdaptiveMediaSource Range requests) get the correct UA
+            _streamClient = new Windows.Web.Http.HttpClient(new IosUserAgentFilter());
 
             // Handle hardware back button (Windows 10 Mobile)
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
@@ -201,9 +200,7 @@ namespace subwayTube
             var hlsSource = await AdaptiveMediaSource.CreateFromUriAsync(new Uri(hlsUrl), _streamClient);
             if (hlsSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
-                var adaptiveSource = hlsSource.MediaSource;
-                adaptiveSource.DownloadRequested += OnDashDownloadRequested;
-                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(hlsSource.MediaSource);
                 VideoPlayer.Source = mediaSource;
             }
             else
@@ -214,7 +211,7 @@ namespace subwayTube
 
         /// <summary>
         /// Plays a locally-generated DASH MPD manifest via AdaptiveMediaSource.
-        /// Intercepts segment downloads to use IOS User-Agent (YouTube 403s without it).
+        /// The IosUserAgentFilter ensures all segment Range requests get the correct UA.
         /// </summary>
         private async System.Threading.Tasks.Task PlayDash(string dashMpd)
         {
@@ -233,7 +230,7 @@ namespace subwayTube
             await _currentStream.WriteAsync(bytes.AsBuffer());
             _currentStream.Seek(0);
 
-            // Create adaptive source from the DASH manifest stream, using our custom HttpClient
+            // Create adaptive source from the DASH manifest stream, using our filter-based HttpClient
             var dashSource = await AdaptiveMediaSource.CreateFromStreamAsync(
                 _currentStream,
                 new System.Uri("https://www.youtube.com/dash"),
@@ -242,40 +239,12 @@ namespace subwayTube
 
             if (dashSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
-                var adaptiveSource = dashSource.MediaSource;
-
-                // Intercept every segment/init download to fetch with IOS User-Agent ourselves.
-                // AdaptiveMediaSource may not forward our HttpClient headers on all requests.
-                adaptiveSource.DownloadRequested += OnDashDownloadRequested;
-
-                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(dashSource.MediaSource);
                 VideoPlayer.Source = mediaSource;
             }
             else
             {
                 throw new Exception("DASH failed: " + dashSource.Status);
-            }
-        }
-
-        private async void OnDashDownloadRequested(AdaptiveMediaSource sender, AdaptiveMediaSourceDownloadRequestedEventArgs args)
-        {
-            var deferral = args.GetDeferral();
-            try
-            {
-                // Fetch the segment ourselves with IOS User-Agent
-                var response = await _streamClient.GetAsync(args.ResourceUri);
-                response.EnsureSuccessStatusCode();
-                var buffer = await response.Content.ReadAsBufferAsync();
-                args.Result.Buffer = buffer;
-                args.Result.ContentType = response.Content.Headers.ContentType?.MediaType ?? "";
-            }
-            catch
-            {
-                // Let the player handle the error naturally
-            }
-            finally
-            {
-                deferral.Complete();
             }
         }
 
