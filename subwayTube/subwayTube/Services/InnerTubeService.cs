@@ -166,7 +166,7 @@ namespace subwayTube.Services
                     if (thumbs.Count > 0)
                     {
                         // Pick the last (highest resolution) thumbnail
-                        thumbnailUrl = thumbs.GetObjectAt(thumbs.Count - 1).GetNamedString("url");
+                        thumbnailUrl = thumbs.GetObjectAt((uint)(thumbs.Count - 1)).GetNamedString("url");
                         // Fix protocol-relative URLs
                         if (thumbnailUrl.StartsWith("//"))
                             thumbnailUrl = "https:" + thumbnailUrl;
