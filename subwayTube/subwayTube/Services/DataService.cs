@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization.Json;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,14 +17,16 @@ namespace subwayTube.Services
         private const string HistoryFile = "history.json";
         private const string SearchHistoryFile = "searchhistory.json";
 
-        public List<Subscription> Subscriptions { get; private set; } = new List<Subscription>();
-        public List<HistoryItem> History { get; private set; } = new List<HistoryItem>();
+        public ObservableCollection<Subscription> Subscriptions { get; private set; } = new ObservableCollection<Subscription>();
+        public ObservableCollection<HistoryItem> History { get; private set; } = new ObservableCollection<HistoryItem>();
         public List<SearchHistoryItem> SearchHistory { get; private set; } = new List<SearchHistoryItem>();
 
         public async Task LoadAllAsync()
         {
-            Subscriptions = await LoadListAsync<Subscription>(SubscriptionsFile) ?? new List<Subscription>();
-            History = await LoadListAsync<HistoryItem>(HistoryFile) ?? new List<HistoryItem>();
+            var subs = await LoadListAsync<Subscription>(SubscriptionsFile);
+            Subscriptions = new ObservableCollection<Subscription>(subs ?? new List<Subscription>());
+            var hist = await LoadListAsync<HistoryItem>(HistoryFile);
+            History = new ObservableCollection<HistoryItem>(hist ?? new List<HistoryItem>());
             SearchHistory = await LoadListAsync<SearchHistoryItem>(SearchHistoryFile) ?? new List<SearchHistoryItem>();
         }
 
@@ -37,15 +41,21 @@ namespace subwayTube.Services
         public async Task AddSubscription(string authorId, string author, string thumbnailUrl)
         {
             if (IsSubscribed(authorId)) return;
-            Subscriptions.Add(new Subscription { AuthorId = authorId, Author = author, ThumbnailUrl = thumbnailUrl });
-            Subscriptions.Sort((a, b) => string.Compare(a.Author, b.Author, StringComparison.OrdinalIgnoreCase));
-            await SaveListAsync(Subscriptions, SubscriptionsFile);
+            var item = new Subscription { AuthorId = authorId, Author = author, ThumbnailUrl = thumbnailUrl };
+            // Insert in sorted position
+            int idx = 0;
+            while (idx < Subscriptions.Count && string.Compare(Subscriptions[idx].Author, author, StringComparison.OrdinalIgnoreCase) < 0)
+                idx++;
+            Subscriptions.Insert(idx, item);
+            await SaveListAsync(Subscriptions.ToList(), SubscriptionsFile);
         }
 
         public async Task RemoveSubscription(string authorId)
         {
-            Subscriptions.RemoveAll(s => s.AuthorId == authorId);
-            await SaveListAsync(Subscriptions, SubscriptionsFile);
+            for (int i = Subscriptions.Count - 1; i >= 0; i--)
+                if (Subscriptions[i].AuthorId == authorId)
+                    Subscriptions.RemoveAt(i);
+            await SaveListAsync(Subscriptions.ToList(), SubscriptionsFile);
         }
 
         public async Task ToggleSubscription(string authorId, string author, string thumbnailUrl)
@@ -60,7 +70,9 @@ namespace subwayTube.Services
         public async Task AddHistoryItem(string videoId, string title, string thumbnailUrl, string authorId, string author)
         {
             // Remove existing entry for this video (avoid duplicates)
-            History.RemoveAll(h => h.VideoId == videoId);
+            for (int i = History.Count - 1; i >= 0; i--)
+                if (History[i].VideoId == videoId)
+                    History.RemoveAt(i);
             History.Add(new HistoryItem
             {
                 VideoId = videoId,
@@ -70,9 +82,9 @@ namespace subwayTube.Services
                 Author = author
             });
             // Keep only last 200 entries
-            if (History.Count > 200)
-                History.RemoveRange(0, History.Count - 200);
-            await SaveListAsync(History, HistoryFile);
+            while (History.Count > 200)
+                History.RemoveAt(0);
+            await SaveListAsync(History.ToList(), HistoryFile);
         }
 
         // Search history
