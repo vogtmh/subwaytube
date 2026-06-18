@@ -99,7 +99,9 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Models\VideoResult.cs" />
+    <Compile Include="Models\StreamFormat.cs" />
     <Compile Include="Services\InnerTubeService.cs" />
+    <Compile Include="Services\PlayerService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
