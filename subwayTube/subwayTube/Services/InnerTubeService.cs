@@ -255,54 +255,110 @@ namespace subwayTube.Services
                 return streamingData.GetNamedString("hlsManifestUrl");
             }
 
-            // Option 2: Try muxed formats (contains both audio+video)
-            if (streamingData.ContainsKey("formats"))
-            {
-                var formats = streamingData.GetNamedArray("formats");
-                string fallbackUrl = null;
-                int formatCount = 0;
-                int cipheredCount = 0;
+            // Option 2: Try muxed formats first (contains both audio+video)
+            string muxedUrl = FindStreamInFormats(streamingData, "formats");
+            if (muxedUrl != null)
+                return muxedUrl;
 
-                for (uint i = 0; i < formats.Count; i++)
-                {
-                    var format = formats.GetObjectAt(i);
-                    formatCount++;
-
-                    if (!format.ContainsKey("url"))
-                    {
-                        cipheredCount++;
-                        continue;
-                    }
-
-                    string url = format.GetNamedString("url");
-
-                    // Prefer 360p
-                    if (format.ContainsKey("qualityLabel"))
-                    {
-                        string quality = format.GetNamedString("qualityLabel");
-                        if (quality.Contains("360"))
-                            return url;
-                    }
-
-                    if (format.ContainsKey("quality"))
-                    {
-                        string quality = format.GetNamedString("quality");
-                        if (quality == "medium")
-                            return url;
-                    }
-
-                    if (fallbackUrl == null)
-                        fallbackUrl = url;
-                }
-
-                if (fallbackUrl != null)
-                    return fallbackUrl;
-
-                if (cipheredCount > 0)
-                    throw new Exception(formatCount + " formats found but all " + cipheredCount + " require signature deciphering");
-            }
+            // Option 3: Try adaptiveFormats — pick a video stream (video-only for now)
+            string adaptiveUrl = FindVideoInAdaptiveFormats(streamingData);
+            if (adaptiveUrl != null)
+                return adaptiveUrl;
 
             throw new Exception("No playable formats found in streaming data");
+        }
+
+        private string FindStreamInFormats(JsonObject streamingData, string key)
+        {
+            if (!streamingData.ContainsKey(key))
+                return null;
+
+            var formats = streamingData.GetNamedArray(key);
+            string fallbackUrl = null;
+
+            for (uint i = 0; i < formats.Count; i++)
+            {
+                var format = formats.GetObjectAt(i);
+
+                if (!format.ContainsKey("url"))
+                    continue;
+
+                string url = format.GetNamedString("url");
+
+                // Prefer 360p
+                if (format.ContainsKey("qualityLabel"))
+                {
+                    string quality = format.GetNamedString("qualityLabel");
+                    if (quality.Contains("360"))
+                        return url;
+                }
+
+                if (format.ContainsKey("quality"))
+                {
+                    string quality = format.GetNamedString("quality");
+                    if (quality == "medium")
+                        return url;
+                }
+
+                if (fallbackUrl == null)
+                    fallbackUrl = url;
+            }
+
+            return fallbackUrl;
+        }
+
+        private string FindVideoInAdaptiveFormats(JsonObject streamingData)
+        {
+            if (!streamingData.ContainsKey("adaptiveFormats"))
+                return null;
+
+            var formats = streamingData.GetNamedArray("adaptiveFormats");
+            string target360 = null;
+            string targetLow = null;
+            string fallbackVideo = null;
+            int fallbackHeight = int.MaxValue;
+
+            for (uint i = 0; i < formats.Count; i++)
+            {
+                var format = formats.GetObjectAt(i);
+
+                if (!format.ContainsKey("url"))
+                    continue;
+
+                // Only pick video streams (mimeType starts with "video/")
+                if (!format.ContainsKey("mimeType"))
+                    continue;
+                string mime = format.GetNamedString("mimeType");
+                if (!mime.StartsWith("video/"))
+                    continue;
+
+                string url = format.GetNamedString("url");
+                int height = 0;
+                if (format.ContainsKey("height"))
+                    height = (int)format.GetNamedNumber("height");
+
+                // Exact 360p match
+                if (height == 360)
+                {
+                    target360 = url;
+                }
+                // Closest to 360p without going too high (for Lumia 930 performance)
+                else if (height > 0 && height <= 480)
+                {
+                    if (targetLow == null)
+                        targetLow = url;
+                }
+
+                // Track smallest available as ultimate fallback
+                if (height > 0 && height < fallbackHeight)
+                {
+                    fallbackHeight = height;
+                    fallbackVideo = url;
+                }
+            }
+
+            return target360 ?? targetLow ?? fallbackVideo;
+        }
         }
 
         // Helper: extract text from a "runs" array
