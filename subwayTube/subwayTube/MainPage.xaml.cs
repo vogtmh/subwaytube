@@ -239,12 +239,58 @@ namespace subwayTube
 
             if (dashSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
-                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(dashSource.MediaSource);
+                var adaptiveSource = dashSource.MediaSource;
+                // Intercept downloads to add Range header (YouTube 403s without it)
+                adaptiveSource.DownloadRequested += OnDashDownloadRequested;
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
                 VideoPlayer.Source = mediaSource;
             }
             else
             {
                 throw new Exception("DASH failed: " + dashSource.Status);
+            }
+        }
+
+        private async void OnDashDownloadRequested(AdaptiveMediaSource sender, AdaptiveMediaSourceDownloadRequestedEventArgs args)
+        {
+            // YouTube returns 403 for requests without a bounded Range header.
+            // We intercept every request and fetch with a proper Range header ourselves.
+            var deferral = args.GetDeferral();
+            try
+            {
+                var reqMsg = new Windows.Web.Http.HttpRequestMessage(
+                    Windows.Web.Http.HttpMethod.Get, args.ResourceUri);
+
+                // If the framework provides byte range info, use it; otherwise request first 10MB
+                if (args.ResourceByteRangeOffset.HasValue && args.ResourceByteRangeLength.HasValue)
+                {
+                    var start = args.ResourceByteRangeOffset.Value;
+                    var end = start + args.ResourceByteRangeLength.Value - 1;
+                    reqMsg.Headers.Add("Range", "bytes=" + start + "-" + end);
+                }
+                else if (args.ResourceByteRangeOffset.HasValue)
+                {
+                    var start = args.ResourceByteRangeOffset.Value;
+                    // Bounded range - request a large chunk 
+                    reqMsg.Headers.Add("Range", "bytes=" + start + "-" + (start + 10485759));
+                }
+                else
+                {
+                    // No range info at all - request from start with bounded range
+                    reqMsg.Headers.Add("Range", "bytes=0-10485759");
+                }
+
+                var response = await _streamClient.SendRequestAsync(reqMsg);
+                var buffer = await response.Content.ReadAsBufferAsync();
+                args.Result.Buffer = buffer;
+            }
+            catch
+            {
+                // Let the player handle the error naturally
+            }
+            finally
+            {
+                deferral.Complete();
             }
         }
 
