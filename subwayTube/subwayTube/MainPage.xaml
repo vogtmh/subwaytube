@@ -161,13 +161,15 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8" Spacing="8">
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8">
                 <Button Content="Close"
                         Click="CloseDebug_Click" />
                 <Button Content="Copy"
-                        Click="CopyDebug_Click" />
+                        Click="CopyDebug_Click"
+                        Margin="8,0,0,0" />
                 <Button Content="Save"
-                        Click="SaveDebug_Click" />
+                        Click="SaveDebug_Click"
+                        Margin="8,0,0,0" />
             </StackPanel>
 
             <ScrollViewer Grid.Row="1" Margin="8">
