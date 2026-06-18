@@ -295,19 +295,8 @@ namespace subwayTube.Services
                 if (video.ContainsKey("lengthText"))
                     duration = GetSimpleText(video.GetNamedObject("lengthText"));
 
-                string thumbnailUrl = "";
-                if (video.ContainsKey("thumbnail"))
-                {
-                    var thumbs = video.GetNamedObject("thumbnail").GetNamedArray("thumbnails");
-                    if (thumbs.Count > 0)
-                    {
-                        // Pick the last (highest resolution) thumbnail
-                        thumbnailUrl = thumbs.GetObjectAt((uint)(thumbs.Count - 1)).GetNamedString("url");
-                        // Fix protocol-relative URLs
-                        if (thumbnailUrl.StartsWith("//"))
-                            thumbnailUrl = "https:" + thumbnailUrl;
-                    }
-                }
+                // Construct thumbnail URL directly — avoids webp and TLS issues on W10M
+                string thumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
 
                 string viewCount = "";
                 if (video.ContainsKey("viewCountText"))

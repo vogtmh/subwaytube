@@ -174,7 +174,7 @@ namespace subwayTube
                 {
                     var fmt = avcVideoFormats[0];
                     PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
-                    await PlayDirectUrl(fmt.Url, fmt.MimeType);
+                    await PlayDirectUrl(fmt.Url, fmt.MimeType, fmt.ContentLength);
                 }
                 else
                 {
@@ -301,7 +301,7 @@ namespace subwayTube
         /// then plays from the in-memory stream. This avoids the 403 that
         /// MediaPlayerElement gets when it fetches the URL with a Windows UA.
         /// </summary>
-        private async System.Threading.Tasks.Task PlayDirectUrl(string url, string mimeType = "video/mp4")
+        private async System.Threading.Tasks.Task PlayDirectUrl(string url, string mimeType = "video/mp4", long contentLength = 0)
         {
             _lastPlayedUrl = url;
 
@@ -312,7 +312,13 @@ namespace subwayTube
                 _currentStream = null;
             }
 
-            var response = await _streamClient.GetAsync(new Uri(url));
+            // YouTube requires bounded Range header or returns 403
+            var reqMsg = new Windows.Web.Http.HttpRequestMessage(
+                Windows.Web.Http.HttpMethod.Get, new Uri(url));
+            long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
+            reqMsg.Headers.Add("Range", "bytes=0-" + rangeEnd);
+
+            var response = await _streamClient.SendRequestAsync(reqMsg);
             response.EnsureSuccessStatusCode();
 
             var buffer = await response.Content.ReadAsBufferAsync();
@@ -398,7 +404,7 @@ namespace subwayTube
                     {
                         var fmt = _currentFormats[formatIdx];
                         PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
-                        await PlayDirectUrl(fmt.Url, fmt.MimeType);
+                        await PlayDirectUrl(fmt.Url, fmt.MimeType, fmt.ContentLength);
                         PlayerVideoAuthor.Text = "";
                     }
                 }
