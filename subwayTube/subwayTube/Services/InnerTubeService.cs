@@ -20,6 +20,8 @@ namespace subwayTube.Services
         private const string IosClientVersion = "20.11.6";
         private const string IosUserAgent = "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)";
         private const string IosDeviceModel = "iPhone10,4";
+        private const string AndroidClientVersion = "20.11.6";
+        private const string AndroidUserAgent = "com.google.android.youtube/20.11.6 (Linux; U; Android 13)";
 
         static InnerTubeService()
         {
@@ -109,6 +111,66 @@ namespace subwayTube.Services
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Get a muxed format (video+audio combined) via the ANDROID client.
+        /// IOS client only returns adaptive formats; ANDROID returns muxed itag 18 (360p).
+        /// Used as fallback on W10M where DASH is not supported.
+        /// </summary>
+        public async Task<StreamFormat> GetMuxedFormatAsync(string videoId)
+        {
+            var body = new JsonObject
+            {
+                ["context"] = new JsonObject
+                {
+                    ["client"] = new JsonObject
+                    {
+                        ["clientName"] = JsonValue.CreateStringValue("ANDROID"),
+                        ["clientVersion"] = JsonValue.CreateStringValue(AndroidClientVersion),
+                        ["hl"] = JsonValue.CreateStringValue("en"),
+                        ["gl"] = JsonValue.CreateStringValue("US")
+                    }
+                },
+                ["videoId"] = JsonValue.CreateStringValue(videoId),
+                ["contentCheckOk"] = JsonValue.CreateBooleanValue(true),
+                ["racyCheckOk"] = JsonValue.CreateBooleanValue(true)
+            };
+
+            var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
+            var request = new HttpRequestMessage(HttpMethod.Post, PlayerUrl);
+            request.Content = content;
+            request.Headers.TryAddWithoutValidation("User-Agent", AndroidUserAgent);
+
+            var response = await _httpClient.SendAsync(request);
+            var json = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            JsonObject root;
+            if (!JsonObject.TryParse(json, out root))
+                return null;
+
+            if (!root.ContainsKey("streamingData"))
+                return null;
+
+            var streamingData = root.GetNamedObject("streamingData");
+            if (!streamingData.ContainsKey("formats"))
+                return null;
+
+            var formats = streamingData.GetNamedArray("formats");
+            var muxedFormats = new List<StreamFormat>();
+            ParseFormats(formats, muxedFormats, true);
+
+            // Return the first muxed format with a URL (typically itag 18, 360p)
+            foreach (var fmt in muxedFormats)
+            {
+                if (fmt.Url != null)
+                    return fmt;
+            }
+
+            return null;
         }
 
         private void ParsePlayerResponse(string json, PlayerResponse result)

@@ -28,6 +28,7 @@ namespace subwayTube
         private string _lastPlayedUrl;
         private InMemoryRandomAccessStream _currentStream;
         private string _cachedHlsUrl;
+        private StreamFormat _cachedMuxedFormat;
         private readonly Windows.Web.Http.HttpClient _streamClient;
 
         public MainPage()
@@ -159,7 +160,7 @@ namespace subwayTube
                 QualitySelector.SelectedIndex = 0;
                 _ignoreQualityChange = false;
 
-                // Play: DASH > HLS > direct download (with fallback)
+                // Play: DASH > HLS > Muxed (ANDROID) > direct video-only (with fallback)
                 string playError = null;
 
                 if (dashMpd != null)
@@ -193,21 +194,32 @@ namespace subwayTube
                     }
                 }
 
+                // Muxed fallback: fetch 360p muxed format from ANDROID client
+                // (IOS client only returns adaptive formats which W10M can't play directly)
                 if (playError != null || (dashMpd == null && string.IsNullOrEmpty(playerResponse.HlsManifestUrl)))
                 {
-                    if (avcVideoFormats.Count > 0)
+                    try
                     {
-                        try
+                        PlayerVideoAuthor.Text = "Fetching muxed format...";
+                        var muxedFmt = await _innerTube.GetMuxedFormatAsync(videoId);
+                        if (muxedFmt != null)
                         {
-                            var fmt = avcVideoFormats[0];
-                            PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
-                            await PlayDirectUrl(fmt.Url, fmt.MimeType, fmt.ContentLength);
+                            _cachedMuxedFormat = muxedFmt;
+                            // Add to quality selector if not already there
+                            if (!QualitySelector.Items.Contains("360p (muxed)"))
+                            {
+                                _ignoreQualityChange = true;
+                                QualitySelector.Items.Add("360p (muxed)");
+                                _ignoreQualityChange = false;
+                            }
+                            PlayerVideoAuthor.Text = "Downloading 360p...";
+                            await PlayMuxedUrl(muxedFmt.Url, muxedFmt.ContentLength);
                             playError = null;
                         }
-                        catch (Exception directEx)
-                        {
-                            playError = (playError ?? "") + "\nDirect: " + directEx.Message;
-                        }
+                    }
+                    catch (Exception muxedEx)
+                    {
+                        playError = (playError ?? "") + "\nMuxed: " + muxedEx.Message;
                     }
                 }
 
@@ -366,6 +378,37 @@ namespace subwayTube
             VideoPlayer.Source = MediaSource.CreateFromStream(_currentStream, baseMime);
         }
 
+        /// <summary>
+        /// Downloads a muxed (video+audio) stream and plays it.
+        /// Muxed URLs from ANDROID client work without Range headers.
+        /// </summary>
+        private async System.Threading.Tasks.Task PlayMuxedUrl(string url, long contentLength = 0)
+        {
+            _lastPlayedUrl = url;
+
+            // Dispose previous stream
+            if (_currentStream != null)
+            {
+                _currentStream.Dispose();
+                _currentStream = null;
+            }
+
+            // Muxed URLs work with plain GET (no Range header required)
+            // But we use a bounded Range anyway for consistency
+            var reqMsg = new Windows.Web.Http.HttpRequestMessage(
+                Windows.Web.Http.HttpMethod.Get, new Uri(url));
+            long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
+            reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=0-" + rangeEnd);
+
+            var response = await _streamClient.SendRequestAsync(reqMsg);
+            var buffer = await response.Content.ReadAsBufferAsync();
+            _currentStream = new InMemoryRandomAccessStream();
+            await _currentStream.WriteAsync(buffer);
+            _currentStream.Seek(0);
+
+            VideoPlayer.Source = MediaSource.CreateFromStream(_currentStream, "video/mp4");
+        }
+
         private async void MediaPlayer_MediaFailed(Windows.Media.Playback.MediaPlayer sender, Windows.Media.Playback.MediaPlayerFailedEventArgs args)
         {
             await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
@@ -425,12 +468,19 @@ namespace subwayTube
                 {
                     await PlayHls(_cachedHlsUrl);
                 }
+                else if (selectedText == "360p (muxed)" && _cachedMuxedFormat != null)
+                {
+                    PlayerVideoAuthor.Text = "Downloading 360p...";
+                    await PlayMuxedUrl(_cachedMuxedFormat.Url, _cachedMuxedFormat.ContentLength);
+                    PlayerVideoAuthor.Text = "";
+                }
                 else if (_currentFormats != null)
                 {
-                    // Calculate offset for DASH/HLS entries
+                    // Calculate offset for DASH/HLS/muxed entries
                     int offset = 0;
                     if (QualitySelector.Items.Contains("Auto (DASH)")) offset++;
                     if (QualitySelector.Items.Contains("Auto (HLS)")) offset++;
+                    if (QualitySelector.Items.Contains("360p (muxed)")) offset++;
                     int formatIdx = QualitySelector.SelectedIndex - offset;
                     if (formatIdx >= 0 && formatIdx < _currentFormats.Count)
                     {
