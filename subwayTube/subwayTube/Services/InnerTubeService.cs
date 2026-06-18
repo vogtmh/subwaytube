@@ -174,9 +174,38 @@ namespace subwayTube.Services
                 fmt.Bitrate = f.ContainsKey("bitrate") ? (int)f.GetNamedNumber("bitrate") : 0;
                 fmt.QualityLabel = f.ContainsKey("qualityLabel") ? f.GetNamedString("qualityLabel") : "";
                 fmt.MimeType = f.ContainsKey("mimeType") ? f.GetNamedString("mimeType") : "";
+                fmt.Fps = f.ContainsKey("fps") ? (int)f.GetNamedNumber("fps") : 0;
+                fmt.AudioSampleRate = f.ContainsKey("audioSampleRate") ? int.Parse(f.GetNamedString("audioSampleRate")) : 0;
+                fmt.AudioChannels = f.ContainsKey("audioChannels") ? (int)f.GetNamedNumber("audioChannels") : 0;
+                fmt.ApproxDurationMs = f.ContainsKey("approxDurationMs") ? long.Parse(f.GetNamedString("approxDurationMs")) : 0;
+                fmt.ContentLength = f.ContainsKey("contentLength") ? long.Parse(f.GetNamedString("contentLength")) : 0;
+
+                // Extract codecs from mimeType (e.g. video/mp4; codecs="avc1.640028")
+                var mime = fmt.MimeType;
+                var codecsIdx = mime.IndexOf("codecs=\"");
+                if (codecsIdx >= 0)
+                {
+                    var start = codecsIdx + 8;
+                    var end = mime.IndexOf("\"", start);
+                    if (end > start) fmt.Codecs = mime.Substring(start, end - start);
+                }
 
                 // Determine if this is a video stream
                 fmt.IsVideo = fmt.MimeType.StartsWith("video/");
+
+                // Parse byte ranges for DASH
+                if (f.ContainsKey("initRange"))
+                {
+                    var ir = f.GetNamedObject("initRange");
+                    fmt.InitRangeStart = long.Parse(ir.GetNamedString("start"));
+                    fmt.InitRangeEnd = long.Parse(ir.GetNamedString("end"));
+                }
+                if (f.ContainsKey("indexRange"))
+                {
+                    var xr = f.GetNamedObject("indexRange");
+                    fmt.IndexRangeStart = long.Parse(xr.GetNamedString("start"));
+                    fmt.IndexRangeEnd = long.Parse(xr.GetNamedString("end"));
+                }
 
                 // Get URL or signatureCipher
                 if (f.ContainsKey("url"))

@@ -100,6 +100,7 @@
     </Compile>
     <Compile Include="Models\VideoResult.cs" />
     <Compile Include="Models\StreamFormat.cs" />
+    <Compile Include="Services\DashManifestGenerator.cs" />
     <Compile Include="Services\InnerTubeService.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

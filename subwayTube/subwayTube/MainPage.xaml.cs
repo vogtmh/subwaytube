@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Media.Core;
 using Windows.Media.Streaming.Adaptive;
+using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -24,11 +26,19 @@ namespace subwayTube
         private bool _ignoreQualityChange;
         private PlayerResponse _lastPlayerResponse;
         private string _lastPlayedUrl;
+        private InMemoryRandomAccessStream _currentStream;
+        private string _cachedHlsUrl;
+        private readonly Windows.Web.Http.HttpClient _streamClient;
 
         public MainPage()
         {
             this.InitializeComponent();
             ResultsList.ItemsSource = _results;
+
+            // HTTP client with IOS User-Agent for downloading streams
+            _streamClient = new Windows.Web.Http.HttpClient();
+            _streamClient.DefaultRequestHeaders.UserAgent.ParseAdd(
+                "com.google.ios.youtube/20.11.6 (iPhone10,4; U; CPU iOS 16_7_7 like Mac OS X)");
 
             // Handle hardware back button (Windows 10 Mobile)
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
@@ -122,41 +132,50 @@ namespace subwayTube
                     return;
                 }
 
-                // Collect video formats for quality selector
-                var videoFormats = playerResponse.Formats
-                    .Where(f => f.IsVideo && f.Url != null)
+                _lastPlayerResponse = playerResponse;
+                _cachedHlsUrl = playerResponse.HlsManifestUrl;
+
+                // Try DASH manifest first (combines video + audio adaptively)
+                var dashMpd = DashManifestGenerator.Generate(playerResponse.Formats);
+
+                // Get available video qualities for the selector
+                var avcVideoFormats = playerResponse.Formats
+                    .Where(f => f.IsVideo && !f.IsMuxed && f.Url != null && f.Codecs != null && f.Codecs.StartsWith("avc1"))
                     .OrderByDescending(f => f.Height)
                     .ToList();
-
-                _currentFormats = videoFormats;
+                _currentFormats = avcVideoFormats;
 
                 // Populate quality selector
                 _ignoreQualityChange = true;
                 QualitySelector.Items.Clear();
 
-                // Add HLS option first (adaptive, auto quality with audio)
+                if (dashMpd != null)
+                    QualitySelector.Items.Add("Auto (DASH)");
                 if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
-                {
                     QualitySelector.Items.Add("Auto (HLS)");
-                }
 
-                foreach (var fmt in videoFormats)
-                    QualitySelector.Items.Add(fmt.DisplayLabel);
+                foreach (var fmt in avcVideoFormats)
+                    QualitySelector.Items.Add(fmt.QualityLabel);
 
-                // Default to HLS if available, otherwise first format
                 QualitySelector.SelectedIndex = 0;
                 _ignoreQualityChange = false;
 
-                // Play HLS if available, otherwise fall back to direct URL
-                if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
+                // Play: DASH > HLS > direct download
+                if (dashMpd != null)
+                {
+                    PlayerVideoAuthor.Text = "Loading DASH stream...";
+                    await PlayDash(dashMpd);
+                }
+                else if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
                 {
                     PlayerVideoAuthor.Text = "Loading HLS stream...";
                     await PlayHls(playerResponse.HlsManifestUrl);
                 }
-                else if (videoFormats.Count > 0)
+                else if (avcVideoFormats.Count > 0)
                 {
-                    PlayerVideoAuthor.Text = "Loading stream...";
-                    PlayDirectUrl(videoFormats[0].Url);
+                    var fmt = avcVideoFormats[0];
+                    PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
+                    await PlayDirectUrl(fmt.Url, fmt.MimeType);
                 }
                 else
                 {
@@ -166,7 +185,6 @@ namespace subwayTube
                     return;
                 }
 
-                _lastPlayerResponse = playerResponse;
                 PlayerVideoAuthor.Text = author;
                 PlayerLoadingRing.IsActive = false;
             }
@@ -180,7 +198,7 @@ namespace subwayTube
         private async System.Threading.Tasks.Task PlayHls(string hlsUrl)
         {
             _lastPlayedUrl = hlsUrl;
-            var hlsSource = await AdaptiveMediaSource.CreateFromUriAsync(new Uri(hlsUrl));
+            var hlsSource = await AdaptiveMediaSource.CreateFromUriAsync(new Uri(hlsUrl), _streamClient);
             if (hlsSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
                 var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(hlsSource.MediaSource);
@@ -192,10 +210,75 @@ namespace subwayTube
             }
         }
 
-        private void PlayDirectUrl(string url)
+        /// <summary>
+        /// Plays a locally-generated DASH MPD manifest via AdaptiveMediaSource.
+        /// Uses custom HttpClient with IOS User-Agent so segment fetches don't get 403'd.
+        /// </summary>
+        private async System.Threading.Tasks.Task PlayDash(string dashMpd)
+        {
+            _lastPlayedUrl = "DASH manifest (local)";
+
+            // Dispose previous stream
+            if (_currentStream != null)
+            {
+                _currentStream.Dispose();
+                _currentStream = null;
+            }
+
+            // Write MPD XML to an in-memory stream
+            var bytes = System.Text.Encoding.UTF8.GetBytes(dashMpd);
+            _currentStream = new InMemoryRandomAccessStream();
+            await _currentStream.WriteAsync(bytes.AsBuffer());
+            _currentStream.Seek(0);
+
+            // Create adaptive source from the DASH manifest stream, using our custom HttpClient
+            var dashSource = await AdaptiveMediaSource.CreateFromStreamAsync(
+                _currentStream,
+                new System.Uri("https://www.youtube.com/dash"),
+                "application/dash+xml",
+                _streamClient);
+
+            if (dashSource.Status == AdaptiveMediaSourceCreationStatus.Success)
+            {
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(dashSource.MediaSource);
+                VideoPlayer.Source = mediaSource;
+            }
+            else
+            {
+                throw new Exception("DASH failed: " + dashSource.Status);
+            }
+        }
+
+        /// <summary>
+        /// Downloads the stream via HttpClient with IOS User-Agent, buffers it,
+        /// then plays from the in-memory stream. This avoids the 403 that
+        /// MediaPlayerElement gets when it fetches the URL with a Windows UA.
+        /// </summary>
+        private async System.Threading.Tasks.Task PlayDirectUrl(string url, string mimeType = "video/mp4")
         {
             _lastPlayedUrl = url;
-            VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
+
+            // Dispose previous stream
+            if (_currentStream != null)
+            {
+                _currentStream.Dispose();
+                _currentStream = null;
+            }
+
+            var response = await _streamClient.GetAsync(new Uri(url));
+            response.EnsureSuccessStatusCode();
+
+            var buffer = await response.Content.ReadAsBufferAsync();
+            _currentStream = new InMemoryRandomAccessStream();
+            await _currentStream.WriteAsync(buffer);
+            _currentStream.Seek(0);
+
+            // Extract base mime type (strip codecs parameter)
+            var baseMime = mimeType;
+            var semiIdx = baseMime.IndexOf(';');
+            if (semiIdx >= 0) baseMime = baseMime.Substring(0, semiIdx).Trim();
+
+            VideoPlayer.Source = MediaSource.CreateFromStream(_currentStream, baseMime);
         }
 
         private async void MediaPlayer_MediaFailed(Windows.Media.Playback.MediaPlayer sender, Windows.Media.Playback.MediaPlayerFailedEventArgs args)
@@ -241,22 +324,29 @@ namespace subwayTube
 
             try
             {
-                if (selectedText == "Auto (HLS)")
+                if (selectedText == "Auto (DASH)" && _lastPlayerResponse != null)
                 {
-                    // Re-fetch HLS URL (or cache it)
-                    var response = await _innerTube.GetPlayerResponseAsync(_currentVideoId);
-                    if (!string.IsNullOrEmpty(response.HlsManifestUrl))
-                        await PlayHls(response.HlsManifestUrl);
+                    var dashMpd = DashManifestGenerator.Generate(_lastPlayerResponse.Formats);
+                    if (dashMpd != null)
+                        await PlayDash(dashMpd);
+                }
+                else if (selectedText == "Auto (HLS)" && !string.IsNullOrEmpty(_cachedHlsUrl))
+                {
+                    await PlayHls(_cachedHlsUrl);
                 }
                 else if (_currentFormats != null)
                 {
-                    // Find the format matching the selected label
-                    // Account for the HLS entry offset
-                    int offset = QualitySelector.Items.Contains("Auto (HLS)") ? 1 : 0;
+                    // Calculate offset for DASH/HLS entries
+                    int offset = 0;
+                    if (QualitySelector.Items.Contains("Auto (DASH)")) offset++;
+                    if (QualitySelector.Items.Contains("Auto (HLS)")) offset++;
                     int formatIdx = QualitySelector.SelectedIndex - offset;
                     if (formatIdx >= 0 && formatIdx < _currentFormats.Count)
                     {
-                        PlayDirectUrl(_currentFormats[formatIdx].Url);
+                        var fmt = _currentFormats[formatIdx];
+                        PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
+                        await PlayDirectUrl(fmt.Url, fmt.MimeType);
+                        PlayerVideoAuthor.Text = "";
                     }
                 }
             }
@@ -296,6 +386,11 @@ namespace subwayTube
         private void ClosePlayer()
         {
             VideoPlayer.Source = null;
+            if (_currentStream != null)
+            {
+                _currentStream.Dispose();
+                _currentStream = null;
+            }
             PlayerOverlay.Visibility = Visibility.Collapsed;
             DebugOverlay.Visibility = Visibility.Collapsed;
             _isPlayerOpen = false;

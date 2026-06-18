@@ -31,6 +31,18 @@ namespace subwayTube.Models
         /// </summary>
         public bool IsVideo { get; set; }
 
+        // DASH manifest fields
+        public string Codecs { get; set; }
+        public int Fps { get; set; }
+        public long ContentLength { get; set; }
+        public long ApproxDurationMs { get; set; }
+        public long InitRangeStart { get; set; }
+        public long InitRangeEnd { get; set; }
+        public long IndexRangeStart { get; set; }
+        public long IndexRangeEnd { get; set; }
+        public int AudioSampleRate { get; set; }
+        public int AudioChannels { get; set; }
+
         public string DisplayLabel
         {
             get
