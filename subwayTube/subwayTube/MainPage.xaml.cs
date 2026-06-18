@@ -268,18 +268,18 @@ namespace subwayTube
                 {
                     var start = args.ResourceByteRangeOffset.Value;
                     var end = start + args.ResourceByteRangeLength.Value - 1;
-                    reqMsg.Headers.Add("Range", "bytes=" + start + "-" + end);
+                    reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=" + start + "-" + end);
                 }
                 else if (args.ResourceByteRangeOffset.HasValue)
                 {
                     var start = args.ResourceByteRangeOffset.Value;
                     // Bounded range - request a large chunk 
-                    reqMsg.Headers.Add("Range", "bytes=" + start + "-" + (start + 10485759));
+                    reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=" + start + "-" + (start + 10485759));
                 }
                 else
                 {
                     // No range info at all - request from start with bounded range
-                    reqMsg.Headers.Add("Range", "bytes=0-10485759");
+                    reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=0-10485759");
                 }
 
                 var response = await _streamClient.SendRequestAsync(reqMsg);
@@ -316,10 +316,15 @@ namespace subwayTube
             var reqMsg = new Windows.Web.Http.HttpRequestMessage(
                 Windows.Web.Http.HttpMethod.Get, new Uri(url));
             long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
-            reqMsg.Headers.Add("Range", "bytes=0-" + rangeEnd);
+            reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=0-" + rangeEnd);
 
             var response = await _streamClient.SendRequestAsync(reqMsg);
-            response.EnsureSuccessStatusCode();
+            // Accept both 200 and 206 (Partial Content from Range request)
+            if (response.StatusCode != Windows.Web.Http.HttpStatusCode.Ok &&
+                response.StatusCode != Windows.Web.Http.HttpStatusCode.PartialContent)
+            {
+                throw new Exception("HTTP " + (int)response.StatusCode + " " + response.StatusCode);
+            }
 
             var buffer = await response.Content.ReadAsBufferAsync();
             _currentStream = new InMemoryRandomAccessStream();

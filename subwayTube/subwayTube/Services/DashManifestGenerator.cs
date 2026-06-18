@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using subwayTube.Models;
@@ -32,7 +33,7 @@ namespace subwayTube.Services
             sb.Append("<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" ");
             sb.Append("profiles=\"urn:mpeg:dash:profile:isoff-main:2011\" ");
             sb.Append("type=\"static\" ");
-            sb.Append("mediaPresentationDuration=\"PT" + durationSec.ToString("F3") + "S\" ");
+            sb.Append("mediaPresentationDuration=\"PT" + durationSec.ToString("F3", CultureInfo.InvariantCulture) + "S\" ");
             sb.AppendLine("minBufferTime=\"PT2S\">");
             sb.AppendLine("  <Period>");
 
