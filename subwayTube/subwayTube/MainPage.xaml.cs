@@ -159,26 +159,61 @@ namespace subwayTube
                 QualitySelector.SelectedIndex = 0;
                 _ignoreQualityChange = false;
 
-                // Play: DASH > HLS > direct download
+                // Play: DASH > HLS > direct download (with fallback)
+                string playError = null;
+
                 if (dashMpd != null)
                 {
-                    PlayerVideoAuthor.Text = "Loading DASH stream...";
-                    await PlayDash(dashMpd);
+                    try
+                    {
+                        PlayerVideoAuthor.Text = "Loading DASH stream...";
+                        await PlayDash(dashMpd);
+                        playError = null;
+                    }
+                    catch (Exception dashEx)
+                    {
+                        playError = "DASH: " + dashEx.Message;
+                    }
                 }
-                else if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
+
+                if (playError != null || dashMpd == null)
                 {
-                    PlayerVideoAuthor.Text = "Loading HLS stream...";
-                    await PlayHls(playerResponse.HlsManifestUrl);
+                    if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
+                    {
+                        try
+                        {
+                            PlayerVideoAuthor.Text = "Loading HLS stream...";
+                            await PlayHls(playerResponse.HlsManifestUrl);
+                            playError = null;
+                        }
+                        catch (Exception hlsEx)
+                        {
+                            playError = (playError ?? "") + "\nHLS: " + hlsEx.Message;
+                        }
+                    }
                 }
-                else if (avcVideoFormats.Count > 0)
+
+                if (playError != null || (dashMpd == null && string.IsNullOrEmpty(playerResponse.HlsManifestUrl)))
                 {
-                    var fmt = avcVideoFormats[0];
-                    PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
-                    await PlayDirectUrl(fmt.Url, fmt.MimeType, fmt.ContentLength);
+                    if (avcVideoFormats.Count > 0)
+                    {
+                        try
+                        {
+                            var fmt = avcVideoFormats[0];
+                            PlayerVideoAuthor.Text = "Downloading " + fmt.QualityLabel + "...";
+                            await PlayDirectUrl(fmt.Url, fmt.MimeType, fmt.ContentLength);
+                            playError = null;
+                        }
+                        catch (Exception directEx)
+                        {
+                            playError = (playError ?? "") + "\nDirect: " + directEx.Message;
+                        }
+                    }
                 }
-                else
+
+                if (playError != null)
                 {
-                    playerResponse.Error = "No playable formats found";
+                    playerResponse.Error = playError;
                     ShowDebug(videoId, playerResponse);
                     PlayerLoadingRing.IsActive = false;
                     return;
@@ -296,10 +331,13 @@ namespace subwayTube
             }
         }
 
+        private static readonly System.Net.Http.HttpClient _downloadClient = new System.Net.Http.HttpClient();
+
         /// <summary>
-        /// Downloads the stream via HttpClient with IOS User-Agent, buffers it,
-        /// then plays from the in-memory stream. This avoids the 403 that
-        /// MediaPlayerElement gets when it fetches the URL with a Windows UA.
+        /// Downloads the stream via System.Net.Http with Range header, buffers it,
+        /// then plays from the in-memory stream.
+        /// Uses System.Net.Http instead of Windows.Web.Http to ensure Range headers
+        /// are sent correctly on Windows 10 Mobile.
         /// </summary>
         private async System.Threading.Tasks.Task PlayDirectUrl(string url, string mimeType = "video/mp4", long contentLength = 0)
         {
@@ -313,22 +351,20 @@ namespace subwayTube
             }
 
             // YouTube requires bounded Range header or returns 403
-            var reqMsg = new Windows.Web.Http.HttpRequestMessage(
-                Windows.Web.Http.HttpMethod.Get, new Uri(url));
+            var reqMsg = new System.Net.Http.HttpRequestMessage(
+                System.Net.Http.HttpMethod.Get, url);
             long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
-            reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=0-" + rangeEnd);
+            reqMsg.Headers.TryAddWithoutValidation("Range", "bytes=0-" + rangeEnd);
 
-            var response = await _streamClient.SendRequestAsync(reqMsg);
-            // Accept both 200 and 206 (Partial Content from Range request)
-            if (response.StatusCode != Windows.Web.Http.HttpStatusCode.Ok &&
-                response.StatusCode != Windows.Web.Http.HttpStatusCode.PartialContent)
+            var response = await _downloadClient.SendAsync(reqMsg);
+            if ((int)response.StatusCode != 200 && (int)response.StatusCode != 206)
             {
                 throw new Exception("HTTP " + (int)response.StatusCode + " " + response.StatusCode);
             }
 
-            var buffer = await response.Content.ReadAsBufferAsync();
+            var bytes = await response.Content.ReadAsByteArrayAsync();
             _currentStream = new InMemoryRandomAccessStream();
-            await _currentStream.WriteAsync(buffer);
+            await _currentStream.WriteAsync(bytes.AsBuffer());
             _currentStream.Seek(0);
 
             // Extract base mime type (strip codecs parameter)
