@@ -99,16 +99,33 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <Button x:Name="ClosePlayerButton"
-                    Grid.Row="0"
-                    Content="Back"
-                    Click="ClosePlayerButton_Click"
-                    HorizontalAlignment="Left"
-                    Margin="8" />
+            <Grid Grid.Row="0" Background="#111111" Padding="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-            <WebView x:Name="VideoWebView"
-                     Grid.Row="1"
-                     NavigationStarting="VideoWebView_NavigationStarting" />
+                <Button x:Name="ClosePlayerButton"
+                        Grid.Column="0"
+                        Content="Back"
+                        Click="ClosePlayerButton_Click"
+                        Margin="4" />
+
+                <ComboBox x:Name="QualitySelector"
+                          Grid.Column="2"
+                          PlaceholderText="Quality"
+                          SelectionChanged="QualitySelector_SelectionChanged"
+                          MinWidth="120"
+                          Margin="4"
+                          VerticalAlignment="Center" />
+            </Grid>
+
+            <MediaPlayerElement x:Name="VideoPlayer"
+                                Grid.Row="1"
+                                AreTransportControlsEnabled="True"
+                                AutoPlay="True"
+                                Stretch="Uniform" />
 
             <ProgressRing x:Name="PlayerLoadingRing"
                           Grid.Row="1"
@@ -133,6 +150,9 @@
                            Margin="0,4,0,0" />
             </StackPanel>
         </Grid>
+
+        <!-- Hidden WebView used as JS engine for signature deciphering -->
+        <WebView x:Name="JsEngine" Visibility="Collapsed" Width="0" Height="0" />
 
         <!-- Debug overlay (fullscreen, scrollable) -->
         <Grid x:Name="DebugOverlay"

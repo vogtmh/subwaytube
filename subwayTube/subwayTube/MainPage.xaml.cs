@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
+using Windows.Media.Core;
 using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -13,13 +16,18 @@ namespace subwayTube
     public sealed partial class MainPage : Page
     {
         private readonly InnerTubeService _innerTube = new InnerTubeService();
+        private readonly PlayerService _playerService = new PlayerService();
         private readonly ObservableCollection<VideoResult> _results = new ObservableCollection<VideoResult>();
         private bool _isPlayerOpen;
+        private List<StreamFormat> _currentFormats;
+        private string _currentVideoId;
+        private bool _ignoreQualityChange;
 
         public MainPage()
         {
             this.InitializeComponent();
             ResultsList.ItemsSource = _results;
+            _playerService.SetWebView(JsEngine);
 
             // Handle hardware back button (Windows 10 Mobile)
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
@@ -91,6 +99,8 @@ namespace subwayTube
 
         private async System.Threading.Tasks.Task PlayVideo(string videoId, string title, string author, string thumbnailUrl)
         {
+            _currentVideoId = videoId;
+
             // Show player overlay
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
@@ -101,26 +111,130 @@ namespace subwayTube
             PlayerVideoAuthor.Text = author;
             PlayerLoadingRing.IsActive = true;
 
-            // Use YouTube's embed player via WebView — avoids needing poToken + signature deciphering
-            var embedHtml = "<!DOCTYPE html><html><head>" +
-                "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
-                "<style>*{margin:0;padding:0}html,body{width:100%;height:100%;background:#000}" +
-                "iframe{width:100%;height:100%;border:0}</style></head><body>" +
-                "<iframe src='https://www.youtube.com/embed/" + Uri.EscapeDataString(videoId) +
-                "?autoplay=1&rel=0&playsinline=1' allow='autoplay' allowfullscreen></iframe>" +
-                "</body></html>";
+            try
+            {
+                // Step 1: Prepare the JS decipher engine
+                PlayerVideoAuthor.Text = "Preparing decipher engine...";
+                await _playerService.PrepareDecipherAsync(videoId);
 
-            VideoWebView.NavigateToString(embedHtml);
-            PlayerLoadingRing.IsActive = false;
+                // Step 2: Get player response with all formats
+                PlayerVideoAuthor.Text = "Fetching video info...";
+                var playerResponse = await _innerTube.GetPlayerResponseAsync(videoId);
+
+                if (playerResponse.Error != null)
+                {
+                    PlayerLoadingRing.IsActive = false;
+                    ShowDebug(videoId, playerResponse);
+                    return;
+                }
+
+                // Step 3: Filter to video formats, muxed preferred, sorted by height
+                var videoFormats = playerResponse.Formats
+                    .Where(f => f.IsVideo)
+                    .OrderByDescending(f => f.IsMuxed)
+                    .ThenByDescending(f => f.Height)
+                    .ToList();
+
+                if (videoFormats.Count == 0)
+                {
+                    PlayerLoadingRing.IsActive = false;
+                    playerResponse.Error = "No video formats available";
+                    ShowDebug(videoId, playerResponse);
+                    return;
+                }
+
+                _currentFormats = videoFormats;
+
+                // Step 4: Populate quality selector
+                _ignoreQualityChange = true;
+                QualitySelector.Items.Clear();
+                foreach (var fmt in videoFormats)
+                {
+                    QualitySelector.Items.Add(fmt.DisplayLabel);
+                }
+
+                // Select default quality
+                int defaultIdx = FindDefaultQualityIndex(videoFormats);
+                QualitySelector.SelectedIndex = defaultIdx;
+                _ignoreQualityChange = false;
+
+                // Step 5: Decipher and play
+                PlayerVideoAuthor.Text = "Deciphering stream URL...";
+                await PlayFormat(videoFormats[defaultIdx]);
+
+                PlayerVideoAuthor.Text = author;
+                PlayerLoadingRing.IsActive = false;
+            }
+            catch (Exception ex)
+            {
+                PlayerVideoAuthor.Text = "Error: " + ex.Message;
+                PlayerLoadingRing.IsActive = false;
+            }
         }
 
-        private void ShowDebug(string videoId, Services.InnerTubeService.PlayerResult result)
+        private async System.Threading.Tasks.Task PlayFormat(StreamFormat format)
+        {
+            string url;
+
+            if (format.SignatureCipher != null)
+            {
+                url = await _playerService.DecipherUrlAsync(format.SignatureCipher);
+            }
+            else if (format.Url != null)
+            {
+                url = await _playerService.DecipherDirectUrlAsync(format.Url);
+            }
+            else
+            {
+                throw new Exception("Format has no URL or signatureCipher");
+            }
+
+            VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
+        }
+
+        private int FindDefaultQualityIndex(List<StreamFormat> formats)
+        {
+            // Prefer muxed 720p
+            for (int i = 0; i < formats.Count; i++)
+                if (formats[i].IsMuxed && formats[i].Height == 720) return i;
+            // Then muxed 480p
+            for (int i = 0; i < formats.Count; i++)
+                if (formats[i].IsMuxed && formats[i].Height == 480) return i;
+            // Then muxed 360p
+            for (int i = 0; i < formats.Count; i++)
+                if (formats[i].IsMuxed && formats[i].Height == 360) return i;
+            // Then any muxed
+            for (int i = 0; i < formats.Count; i++)
+                if (formats[i].IsMuxed) return i;
+            // Then 720p adaptive
+            for (int i = 0; i < formats.Count; i++)
+                if (formats[i].Height == 720) return i;
+            return 0;
+        }
+
+        private async void QualitySelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_ignoreQualityChange || _currentFormats == null || QualitySelector.SelectedIndex < 0)
+                return;
+
+            var format = _currentFormats[QualitySelector.SelectedIndex];
+            try
+            {
+                await PlayFormat(format);
+            }
+            catch (Exception ex)
+            {
+                PlayerVideoAuthor.Text = "Quality change error: " + ex.Message;
+            }
+        }
+
+        private void ShowDebug(string videoId, PlayerResponse result)
         {
             var info = "=== PLAYER DEBUG ===\n\n";
             info += "VideoId: " + videoId + "\n";
             info += "HTTP Status: " + result.StatusCode + "\n";
             info += "Error: " + (result.Error ?? "none") + "\n";
-            info += "StreamUrl: " + (result.StreamUrl ?? "null") + "\n\n";
+            info += "Formats found: " + result.Formats.Count + "\n\n";
             info += "=== REQUEST BODY ===\n" + (result.RequestBody ?? "") + "\n\n";
             info += "=== RAW RESPONSE (first 5000 chars) ===\n";
             var raw = result.RawJson ?? "";
@@ -142,26 +256,12 @@ namespace subwayTube
 
         private void ClosePlayer()
         {
-            VideoWebView.NavigateToString("");
+            VideoPlayer.Source = null;
             PlayerOverlay.Visibility = Visibility.Collapsed;
             DebugOverlay.Visibility = Visibility.Collapsed;
             _isPlayerOpen = false;
+            _currentFormats = null;
             UpdateBackButtonVisibility();
-        }
-
-        private void VideoWebView_NavigationStarting(WebView sender, WebViewNavigationStartingEventArgs args)
-        {
-            // Allow YouTube embeds and about:blank, block everything else
-            if (args.Uri != null)
-            {
-                var host = args.Uri.Host;
-                if (host != "www.youtube.com" && host != "youtube.com" &&
-                    host != "www.youtube-nocookie.com" && host != "accounts.google.com" &&
-                    args.Uri.Scheme != "about")
-                {
-                    args.Cancel = true;
-                }
-            }
         }
 
         private void OnBackRequested(object sender, BackRequestedEventArgs e)
@@ -181,9 +281,6 @@ namespace subwayTube
                     : AppViewBackButtonVisibility.Collapsed;
         }
 
-        /// <summary>
-        /// Extract a video ID from a YouTube URL, or return null if not a YouTube URL.
-        /// </summary>
         private string ExtractVideoId(string input)
         {
             if (input.StartsWith("https://youtu.be/", StringComparison.OrdinalIgnoreCase))

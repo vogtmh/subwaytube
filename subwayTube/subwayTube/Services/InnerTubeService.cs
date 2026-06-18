@@ -56,10 +56,10 @@ namespace subwayTube.Services
         }
 
         /// <summary>
-        /// Get a direct 360p stream URL for a video using the InnerTube API (IOS client).
-        /// The IOS client typically returns direct stream URLs without signature deciphering.
+        /// Get available stream formats for a video using the InnerTube API (WEB client).
+        /// Returns raw format data; URLs may need deciphering via PlayerService.
         /// </summary>
-        public async Task<PlayerResult> GetStreamUrlAsync(string videoId)
+        public async Task<PlayerResponse> GetPlayerResponseAsync(string videoId)
         {
             var body = new JsonObject
             {
@@ -67,9 +67,8 @@ namespace subwayTube.Services
                 {
                     ["client"] = new JsonObject
                     {
-                        ["clientName"] = JsonValue.CreateStringValue("IOS"),
-                        ["clientVersion"] = JsonValue.CreateStringValue(IosClientVersion),
-                        ["deviceModel"] = JsonValue.CreateStringValue(IosDeviceModel),
+                        ["clientName"] = JsonValue.CreateStringValue("WEB"),
+                        ["clientVersion"] = JsonValue.CreateStringValue(WebClientVersion),
                         ["hl"] = JsonValue.CreateStringValue("en"),
                         ["gl"] = JsonValue.CreateStringValue("US")
                     }
@@ -80,15 +79,10 @@ namespace subwayTube.Services
             };
 
             var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
-
-            var request = new HttpRequestMessage(HttpMethod.Post, PlayerUrl);
-            request.Content = content;
-            request.Headers.TryAddWithoutValidation("User-Agent", IosUserAgent);
-
-            var response = await _httpClient.SendAsync(request);
+            var response = await _httpClient.PostAsync(PlayerUrl, content);
             var json = await response.Content.ReadAsStringAsync();
 
-            var result = new PlayerResult();
+            var result = new PlayerResponse();
             result.RawJson = json;
             result.RequestBody = body.Stringify();
             result.StatusCode = (int)response.StatusCode;
@@ -101,7 +95,7 @@ namespace subwayTube.Services
 
             try
             {
-                result.StreamUrl = ParseStreamUrl(json);
+                ParsePlayerResponse(json, result);
             }
             catch (Exception ex)
             {
@@ -111,6 +105,90 @@ namespace subwayTube.Services
             return result;
         }
 
+        private void ParsePlayerResponse(string json, PlayerResponse result)
+        {
+            JsonObject root;
+            if (!JsonObject.TryParse(json, out root))
+                throw new Exception("Invalid JSON response from player API");
+
+            // Check playability
+            if (root.ContainsKey("playabilityStatus"))
+            {
+                var status = root.GetNamedObject("playabilityStatus");
+                var statusStr = status.GetNamedString("status");
+                if (statusStr != "OK")
+                {
+                    string reason = "unknown";
+                    if (status.ContainsKey("reason"))
+                        reason = status.GetNamedString("reason");
+                    else if (status.ContainsKey("messages"))
+                        reason = status.GetNamedArray("messages").GetStringAt(0);
+                    throw new Exception("Playback blocked: " + statusStr + " - " + reason);
+                }
+            }
+
+            if (!root.ContainsKey("streamingData"))
+                throw new Exception("No streaming data in response");
+
+            var streamingData = root.GetNamedObject("streamingData");
+
+            // Parse muxed formats (audio+video)
+            if (streamingData.ContainsKey("formats"))
+            {
+                ParseFormats(streamingData.GetNamedArray("formats"), result.Formats, true);
+            }
+
+            // Parse adaptive formats (video-only and audio-only)
+            if (streamingData.ContainsKey("adaptiveFormats"))
+            {
+                ParseFormats(streamingData.GetNamedArray("adaptiveFormats"), result.Formats, false);
+            }
+
+            if (result.Formats.Count == 0)
+                throw new Exception("No formats found in streaming data");
+        }
+
+        private void ParseFormats(JsonArray formats, List<StreamFormat> output, bool isMuxed)
+        {
+            for (uint i = 0; i < formats.Count; i++)
+            {
+                var f = formats.GetObjectAt(i);
+                var fmt = new StreamFormat();
+
+                fmt.IsMuxed = isMuxed;
+                fmt.Itag = f.ContainsKey("itag") ? (int)f.GetNamedNumber("itag") : 0;
+                fmt.Height = f.ContainsKey("height") ? (int)f.GetNamedNumber("height") : 0;
+                fmt.Width = f.ContainsKey("width") ? (int)f.GetNamedNumber("width") : 0;
+                fmt.Bitrate = f.ContainsKey("bitrate") ? (int)f.GetNamedNumber("bitrate") : 0;
+                fmt.QualityLabel = f.ContainsKey("qualityLabel") ? f.GetNamedString("qualityLabel") : "";
+                fmt.MimeType = f.ContainsKey("mimeType") ? f.GetNamedString("mimeType") : "";
+
+                // Determine if this is a video stream
+                fmt.IsVideo = fmt.MimeType.StartsWith("video/");
+
+                // Get URL or signatureCipher
+                if (f.ContainsKey("url"))
+                {
+                    fmt.Url = f.GetNamedString("url");
+                }
+                else if (f.ContainsKey("signatureCipher"))
+                {
+                    fmt.SignatureCipher = f.GetNamedString("signatureCipher");
+                }
+                else if (f.ContainsKey("cipher"))
+                {
+                    fmt.SignatureCipher = f.GetNamedString("cipher");
+                }
+                else
+                {
+                    continue; // No URL available at all
+                }
+
+                output.Add(fmt);
+            }
+        }
+
+        // Keep old method for backward compatibility during transition
         public class PlayerResult
         {
             public string StreamUrl { get; set; }
@@ -222,143 +300,6 @@ namespace subwayTube.Services
             }
         }
 
-        private string ParseStreamUrl(string json)
-        {
-            JsonObject root;
-            if (!JsonObject.TryParse(json, out root))
-                throw new Exception("Invalid JSON response from player API");
-
-            // Check playability
-            if (root.ContainsKey("playabilityStatus"))
-            {
-                var status = root.GetNamedObject("playabilityStatus");
-                var statusStr = status.GetNamedString("status");
-                if (statusStr != "OK")
-                {
-                    string reason = "unknown";
-                    if (status.ContainsKey("reason"))
-                        reason = status.GetNamedString("reason");
-                    else if (status.ContainsKey("messages"))
-                        reason = status.GetNamedArray("messages").GetStringAt(0);
-                    throw new Exception("Playback blocked: " + statusStr + " - " + reason);
-                }
-            }
-
-            if (!root.ContainsKey("streamingData"))
-                throw new Exception("No streaming data in response");
-
-            var streamingData = root.GetNamedObject("streamingData");
-
-            // Option 1: Try HLS manifest (adaptive streaming, works natively in MediaPlayerElement)
-            if (streamingData.ContainsKey("hlsManifestUrl"))
-            {
-                return streamingData.GetNamedString("hlsManifestUrl");
-            }
-
-            // Option 2: Try muxed formats first (contains both audio+video)
-            string muxedUrl = FindStreamInFormats(streamingData, "formats");
-            if (muxedUrl != null)
-                return muxedUrl;
-
-            // Option 3: Try adaptiveFormats — pick a video stream (video-only for now)
-            string adaptiveUrl = FindVideoInAdaptiveFormats(streamingData);
-            if (adaptiveUrl != null)
-                return adaptiveUrl;
-
-            throw new Exception("No playable formats found in streaming data");
-        }
-
-        private string FindStreamInFormats(JsonObject streamingData, string key)
-        {
-            if (!streamingData.ContainsKey(key))
-                return null;
-
-            var formats = streamingData.GetNamedArray(key);
-            string fallbackUrl = null;
-
-            for (uint i = 0; i < formats.Count; i++)
-            {
-                var format = formats.GetObjectAt(i);
-
-                if (!format.ContainsKey("url"))
-                    continue;
-
-                string url = format.GetNamedString("url");
-
-                // Prefer 360p
-                if (format.ContainsKey("qualityLabel"))
-                {
-                    string quality = format.GetNamedString("qualityLabel");
-                    if (quality.Contains("360"))
-                        return url;
-                }
-
-                if (format.ContainsKey("quality"))
-                {
-                    string quality = format.GetNamedString("quality");
-                    if (quality == "medium")
-                        return url;
-                }
-
-                if (fallbackUrl == null)
-                    fallbackUrl = url;
-            }
-
-            return fallbackUrl;
-        }
-
-        private string FindVideoInAdaptiveFormats(JsonObject streamingData)
-        {
-            if (!streamingData.ContainsKey("adaptiveFormats"))
-                return null;
-
-            var formats = streamingData.GetNamedArray("adaptiveFormats");
-            string target360 = null;
-            string targetLow = null;
-            string fallbackVideo = null;
-            int fallbackHeight = int.MaxValue;
-
-            for (uint i = 0; i < formats.Count; i++)
-            {
-                var format = formats.GetObjectAt(i);
-
-                if (!format.ContainsKey("url"))
-                    continue;
-
-                // Only pick video streams (mimeType starts with "video/")
-                if (!format.ContainsKey("mimeType"))
-                    continue;
-                string mime = format.GetNamedString("mimeType");
-                if (!mime.StartsWith("video/"))
-                    continue;
-
-                string url = format.GetNamedString("url");
-                int height = 0;
-                if (format.ContainsKey("height"))
-                    height = (int)format.GetNamedNumber("height");
-
-                // Exact 360p match
-                if (height == 360)
-                {
-                    target360 = url;
-                }
-                // Closest to 360p without going too high (for Lumia 930 performance)
-                else if (height > 0 && height <= 480)
-                {
-                    if (targetLow == null)
-                        targetLow = url;
-                }
-
-                // Track smallest available as ultimate fallback
-                if (height > 0 && height < fallbackHeight)
-                {
-                    fallbackHeight = height;
-                    fallbackVideo = url;
-                }
-            }
-
-            return target360 ?? targetLow ?? fallbackVideo;
-        }
 
         // Helper: extract text from a "runs" array
         private string GetTextFromRuns(JsonObject textObj)
