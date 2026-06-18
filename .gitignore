@@ -1,5 +1,6 @@
 AppPackages
 bin
+obj
 bld
 .vs/
 misc/FreeTube/
