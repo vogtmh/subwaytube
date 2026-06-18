@@ -16,10 +16,16 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock Text="subwayTube" FontSize="20" FontWeight="Bold"
                        Foreground="White" VerticalAlignment="Center" />
-            <Button x:Name="RefreshButton" Grid.Column="1"
+            <Button x:Name="ScaleButton" Grid.Column="1"
+                    Click="ScaleButton_Click" Background="Transparent"
+                    Margin="4,0,0,0">
+                <TextBlock x:Name="ScaleLabel" Text="1x1" FontSize="14" Foreground="White" FontWeight="Bold" />
+            </Button>
+            <Button x:Name="RefreshButton" Grid.Column="2"
                     Click="RefreshButton_Click" Background="Transparent"
                     Margin="4,0,0,0" Visibility="Collapsed">
                 <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72C;" FontSize="18" Foreground="White" />
@@ -36,21 +42,24 @@
                        Foreground="Gray" FontSize="16"
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        TextWrapping="Wrap" Margin="40" TextAlignment="Center" />
-            <ListView x:Name="FeedList" Background="Transparent"
+            <GridView x:Name="FeedList" Background="Transparent"
                       ItemClick="FeedList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
-                <ListView.ItemTemplate>
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Padding="8">
-                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
-                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
-                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
-                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
-                                <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="11" Margin="0,2,0,0" />
-                            </StackPanel>
+                        <StackPanel Padding="4">
+                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            <TextBlock Text="{Binding Title}" Foreground="White" FontSize="13" TextWrapping="Wrap" MaxLines="2" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="11" />
+                            <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="10" />
                         </StackPanel>
                     </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                </GridView.ItemTemplate>
+            </GridView>
         </Grid>
 
         <!-- ==================== SEARCH PANEL ==================== -->
@@ -91,21 +100,24 @@
             </ListView>
 
             <!-- Search results -->
-            <ListView x:Name="ResultsList" Grid.Row="1" Background="Transparent"
+            <GridView x:Name="ResultsList" Grid.Row="1" Background="Transparent"
                       ItemClick="ResultsList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
-                <ListView.ItemTemplate>
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Padding="8">
-                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
-                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
-                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
-                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
-                                <TextBlock Text="{Binding Duration}" Foreground="Gray" FontSize="11" Margin="0,2,0,0" />
-                            </StackPanel>
+                        <StackPanel Padding="4">
+                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            <TextBlock Text="{Binding Title}" Foreground="White" FontSize="13" TextWrapping="Wrap" MaxLines="2" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="11" />
+                            <TextBlock Text="{Binding Duration}" Foreground="Gray" FontSize="10" />
                         </StackPanel>
                     </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                </GridView.ItemTemplate>
+            </GridView>
         </Grid>
 
         <!-- ==================== FAVORITES PANEL ==================== -->
@@ -242,20 +254,23 @@
             <ProgressRing x:Name="ChannelLoadingRing" Grid.Row="1" IsActive="False"
                           Width="50" Height="50" Foreground="White"
                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-            <ListView x:Name="ChannelVideosList" Grid.Row="1" Background="Transparent"
+            <GridView x:Name="ChannelVideosList" Grid.Row="1" Background="Transparent"
                       ItemClick="ChannelVideosList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
-                <ListView.ItemTemplate>
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+                <GridView.ItemTemplate>
                     <DataTemplate>
-                        <StackPanel Orientation="Horizontal" Padding="8">
-                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
-                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
-                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
-                                <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
-                            </StackPanel>
+                        <StackPanel Padding="4">
+                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            <TextBlock Text="{Binding Title}" Foreground="White" FontSize="13" TextWrapping="Wrap" MaxLines="2" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="11" />
                         </StackPanel>
                     </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                </GridView.ItemTemplate>
+            </GridView>
         </Grid>
 
         <!-- ==================== VIDEO PLAYER OVERLAY ==================== -->

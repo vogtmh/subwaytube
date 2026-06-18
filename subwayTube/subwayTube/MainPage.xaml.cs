@@ -41,6 +41,7 @@ namespace subwayTube
         private int _activeTab; // 0=Feed, 1=Search, 2=Favorites
         private int _favSubTab; // 0=Channels, 1=History
         private bool _feedLoaded;
+        private int _scaleMode; // 0=full, 1=half (2 per row), 2=third (3 per row)
         private static readonly Windows.UI.Xaml.Media.SolidColorBrush _darkBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 17, 17, 17));
         private static readonly Windows.UI.Xaml.Media.SolidColorBrush _darkGrayBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 51, 51, 51));
         private static readonly Windows.UI.Xaml.Media.SolidColorBrush _accentBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 215));
@@ -52,6 +53,8 @@ namespace subwayTube
             FeedList.ItemsSource = _feedItems;
 
             _streamClient = new Windows.Web.Http.HttpClient(new IosUserAgentFilter());
+
+            this.SizeChanged += Page_SizeChanged;
 
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
             VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
@@ -66,6 +69,57 @@ namespace subwayTube
             ChannelsList.ItemsSource = _data.Subscriptions;
             HistoryList.ItemsSource = _data.History;
             await LoadFeedAsync();
+        }
+
+        // ==================== SCALING ====================
+
+        private void Page_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            ApplyScaling();
+        }
+
+        private void ScaleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _scaleMode = (_scaleMode + 1) % 3;
+            ApplyScaling();
+        }
+
+        private void ApplyScaling()
+        {
+            double pageWidth = this.ActualWidth;
+            if (pageWidth <= 0) return;
+
+            double itemWidth;
+
+            switch (_scaleMode)
+            {
+                case 1: // 2 per row
+                    itemWidth = pageWidth / 2 - 2;
+                    break;
+                case 2: // 3 per row
+                    itemWidth = pageWidth / 3 - 2;
+                    break;
+                default: // full width
+                    itemWidth = pageWidth - 2;
+                    break;
+            }
+
+            ScaleLabel.Text = _scaleMode == 0 ? "1x1" : _scaleMode == 1 ? "1x2" : "1x3";
+
+            // Apply to all GridViews
+            ApplyGridViewSize(FeedList, itemWidth);
+            ApplyGridViewSize(ResultsList, itemWidth);
+            ApplyGridViewSize(ChannelVideosList, itemWidth);
+        }
+
+        private void ApplyGridViewSize(GridView gridView, double itemWidth)
+        {
+            if (gridView == null) return;
+            var panel = gridView.ItemsPanelRoot as ItemsWrapGrid;
+            if (panel != null)
+            {
+                panel.ItemWidth = itemWidth;
+            }
         }
 
         // ==================== TAB SWITCHING ====================
