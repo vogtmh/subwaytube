@@ -1,4 +1,3 @@
-var innertube;
 var server;
 var use_customserver;
 var use_localstreams;
@@ -69,8 +68,8 @@ function shortStr(string) {
     if (string.length > 60) {
         out = string.substring(0, length) + '..'
     }
-
-    return out;
+    
+    return out; 
 }
 
 function microStr(string) {
@@ -84,17 +83,26 @@ function microStr(string) {
 }
 
 // load basic app settings or apply defaults
-async function loadSettings() {
-    // Initialize InnerTube
-    try {
-        innertube = await InnertubeBundle.Innertube.create({
-            fetch: uwpFetch,
-            cache: new InnertubeBundle.UniversalCache(false)
-        });
-        console.log('InnerTube initialized');
-    } catch (error) {
-        console.error('Failed to initialize InnerTube:', error);
-        notifyMe('Failed to initialize InnerTube: ' + error.message);
+function loadSettings() {
+    if (localStorage.getItem("invidious_server") === null) {
+        localStorage.invidious_server = 'https://invidious.perennialte.ch';
+        server = localStorage.invidious_server;
+    } else {
+        server = localStorage.invidious_server;
+    }
+
+    if (localStorage.getItem("use_customserver") === null) {
+        localStorage.use_customserver = false;
+        use_customserver = localStorage.use_customserver;
+    } else {
+        use_customserver = localStorage.use_customserver;
+    }
+
+    if (localStorage.getItem("use_localstreams") === null) {
+        localStorage.use_localstreams = false;
+        use_localstreams = localStorage.use_localstreams;
+    } else {
+        use_localstreams = localStorage.use_localstreams;
     }
 
     if (localStorage.getItem("sizing") === null) {
@@ -117,7 +125,7 @@ async function loadSettings() {
         streamquality = localStorage.streamquality;
     } else {
         streamquality = localStorage.streamquality;
-        console.log('Stream Quality set to ' + streamquality)
+        console.log('Stream Quality set to '+streamquality)
     }
 }
 
@@ -135,7 +143,7 @@ function applySizing() {
 }
 
 // big picture mode for nice presentation
-function switchFullsize() {
+function switchFullsize () {
     $(".videoitem").css("width", "100%");
     $(".videoitem").css("font-size", "16px");
     $(".videoinfo").css("height", "3.5em");
@@ -146,7 +154,7 @@ function switchFullsize() {
 }
 
 // quarter mode for more tiles
-function switchQuarters() {
+function switchQuarters () {
     $(".videoitem").css("width", "50%");
     $(".videoitem").css("font-size", "14px");
     $(".videoinfo").css("height", "5em");
@@ -167,7 +175,7 @@ function switchNiners() {
     localStorage.sizing = 'niners';
 }
 
-function startTouch(e) {
+function startTouch (e) {
     touchstartY = e.touches[0].clientY;
 }
 
@@ -224,7 +232,7 @@ function showFeed() {
 function printFeedHeader(trycount) {
     $("#topsettings").show();
     applySizing();
-    //let requesturl = server + '/api/v1/popular'
+    let requesturl = server + '/api/v1/popular'
     $(".navbutton").css("background-color", "#111");
     $("#nav_feed").css("background-color", "Highlight");
     let search = ``;
@@ -250,12 +258,26 @@ function printFeedHeader(trycount) {
 }
 
 function checkMirror() {
-    // No mirror check needed for InnerTube
-    console.log('[InnerTube] Ready');
+    var requesturl = server + '/api/v1/stats?hl=en-US'
+    $.ajax({
+        url: requesturl,
+        type: 'GET',
+        dataType: 'json',
+        success(response) {
+            console.log('[Mirror] online')
+        },
+        error(jqXHR, status, errorThrown) {
+            console.log('[Mirror] offline')
+            if (tab == 'feed') {
+                let html = '<div style="margin-top: 2em; font-size:2em">Could not connect to server. Please choose another mirror from the settings.</div>';
+                $('#feed').html(html);
+            }
+        },
+    });
 }
 
-async function getFeed(trycount) {
-    checkMirror();
+function getFeed(trycount) {
+    checkMirror(); 
     if (tab == 'feed') {
         printFeedHeader(trycount)
     }
@@ -265,28 +287,49 @@ async function getFeed(trycount) {
         getChannelsFeed(refreshindex);
     }
     else {
-        try {
-            const trending = await innertube.getHomeFeed();
-            let html = ``;
-            for (var i = 0; i < trending.videos.length; i++) {
-                var element = trending.videos[i];
-                let title = element.title.text;
-                let author = element.author.name;
-                let published = element.published.text;
-                var image = element.thumbnails[0].url;
-
-                let videoId = element.id;
-                html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + `"/><div class="videoinfo">` + shortStr(title) + '<br/>' + author + '<br/>' + published + `</div></div>`;
-            }
-            html += '<div id="spacer"></div>'
-            if (tab == 'feed') {
-                $('#feed').html(html);
-            }
-            applySizing();
-        } catch (error) {
-            console.log('failed to fetch trending', error);
-            $('#feed').html('failed to fetch trending: ' + error.message);
-        }
+        var requesturl = server + '/api/v1/popular?hl=en-US'
+        $.ajax({
+            url: requesturl,
+            type: 'GET',
+            dataType: 'json',
+            success(response) {
+                let html = ``;
+                for (var i = 0; i < response.length; i++) {
+                    var element = response[i];
+                    let title = element.title;
+                    let author = element.author;
+                    let published = element.publishedText;
+                    var image = '';
+                    $.each(element.videoThumbnails, function (i, thumbnail) {
+                        if (thumbnail.quality == "medium") {
+                            image = thumbnail.url;
+                            return false; // stops the loop
+                        }
+                    });
+                    let videoId = element.videoId;
+                    html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + `"/><div class="videoinfo">` + shortStr(title) + '<br/>' + author + '<br/>' + published + `</div></div>`;
+                }
+                html += '<div id="spacer"></div>'
+                if (tab == 'feed') {
+                    $('#feed').html(html);
+                }
+                applySizing();
+            },
+            error(jqXHR, status, errorThrown) {
+                if (trycount < 1) {
+                    console.log('failed to fetch ' + requesturl + '. Will retry in 2s ..')
+                    $('#feed').html('failed to fetch ' + requesturl + '. Will retry in 2s ..');
+                    trycount++;
+                    setTimeout(getFeed(trycount), 2000);
+                }
+                else {
+                    console.log(jqXHR)
+                   
+                    console.log('failed to fetch ' + requesturl + '. Tried it for 10 times.')
+                    $('#feed').html('failed to fetch ' + requesturl + '. Tried it for 10 times.');
+                }
+            },
+        });
     }
 }
 
@@ -324,49 +367,78 @@ function getChannelsFeed() {
     }
 }
 
-async function addChannelToFeed(channelId, mode, index) {
-    console.log("requesting channel " + channelId + ' ..')
+function addChannelToFeed(channelId, mode, index) {
+    var requesturl = server + '/api/v1/channels/' + channelId + '?hl=en-US'
+    if (mode == 'streams') {
+        requesturl = server + '/api/v1/channels/' + channelId + '/streams?hl=en-US'
+    }
+    console.log("requesting " + requesturl + ' ..')
 
-    try {
-        const channel = await innertube.getChannel(channelId);
+    $.ajax({
+        url: requesturl,
+        type: 'GET',
+        dataType: 'json',
+        success(response) {
+            var author;
+            var authorThumbnail;
+            var latest;
+            
+            if (mode == 'streams') {
+                latest = response.videos;
+            }
+            else  {
+                author = response.author;
+                authorThumbnail = response.authorThumbnails[3].url;
+                latest = response.latestVideos;
+                let availabletabs = response.tabs;
 
-        // If mode is streams, we might need to navigate to streams tab?
-        // InnerTube usually gets the home tab.
-        // Let's just get videos for now.
-
-        const videos = await channel.getVideos();
-
-        for (var i = 0; i < videos.videos.length; i++) {
-            var element = videos.videos[i];
-            // Check if it's a video
-            if (element.type === 'Video') {
-                let title = element.title.text;
-                let videoId = element.id;
-                let authorId = channelId; // We know the channel ID
-                let author = channel.metadata.title; // Or element.author.name
-                let image = element.thumbnails[0].url;
-                let publishedText = element.published.text;
-                let published = publishedText; // InnerTube gives text
-
-                let videoitem = {
-                    "author": author,
-                    "authorId": authorId,
-                    "videoId": videoId,
-                    "title": title,
-                    "image": image,
-                    "published": published,
-                    "publishedText": publishedText
-                }
-                if (index == refreshindex) {
-                    channelFeed.push(videoitem);
+                for (var t = 0; t < availabletabs.length; t++) {
+                    let tabname = availabletabs[t];
+                    switch (tabname) {
+                        case "streams":
+                            addChannelToFeed(channelId, 'streams', index);
+                            break;
+                    }
                 }
             }
-        }
-        updateFeed()
-
-    } catch (error) {
-        console.log('failed to fetch channel ' + channelId, error)
-    }
+            
+            for (var i = 0; i < latest.length; i++) {
+                var element = latest[i];
+                let published = element.published;
+                let publishedText = element.publishedText;
+                let type = element.type;
+                if (type != 'scheduled' && type != 'livestream' && publishedText != '0 seconds ago') {
+                    let title = element.title;
+                    var image = '';
+                    $.each(element.videoThumbnails, function (i, thumbnail) {
+                        if (thumbnail.quality == "medium") {
+                            image = thumbnail.url;
+                            return false; // stops the loop
+                        }
+                    });
+                    let videoId = element.videoId;
+                    let authorId = element.authorId;
+                    let author = element.author;
+                    let videoitem = {
+                        "author": author,
+                        "authorId": authorId,
+                        "videoId": videoId,
+                        "title": title,
+                        "image": image,
+                        "published": published,
+                        "publishedText": publishedText
+                    }
+                    if (index == refreshindex) {
+                        channelFeed.push(videoitem);
+                    }
+                }
+            }
+            updateFeed()
+        },
+        error(jqXHR, status, errorThrown) {
+            console.log('failed to fetch ' + requesturl)
+        },
+    });
 }
 
 function showSearch() {
@@ -399,7 +471,7 @@ function showSearch() {
     if (searchhistory.length > 0) {
         for (var h = (searchhistory.length - 1); h > -1; h--) {
             let query = searchhistory[h].query;
-            output += `<div class="searchhistoryitem" onclick='$("#searchtext").val("` + query + `"); searchVideos()'>` + query + `</div>`;
+            output += `<div class="searchhistoryitem" onclick='$("#searchtext").val("`+query+`"); searchVideos()'>` + query + `</div>`;
         }
     }
     else {
@@ -460,7 +532,7 @@ function getHistory() {
                   </div>`
 
     if (playhistory.length > 0) {
-        for (var h = (playhistory.length - 1); h > -1; h--) {
+        for (var h = (playhistory.length-1); h >-1; h--) {
             let videoId = playhistory[h].id;
             let title = playhistory[h].name;
             let image = playhistory[h].image;
@@ -480,9 +552,10 @@ function getHistory() {
     }
 }
 
-async function searchVideos(page, sortbydate) {
+function searchVideos(page, sortbydate) {
 
     var currentpage;
+    var requesturl; 
 
     if (!page) {
         currentpage = 1;
@@ -491,8 +564,9 @@ async function searchVideos(page, sortbydate) {
         currentpage = page;
     }
 
-    // InnerTube handles pagination differently (continuation tokens), but for now we'll just do a basic search
-    // TODO: Implement proper pagination if needed, for now just search fresh
+    if (sortbydate == undefined) {
+        sortbydate = true;
+    }
 
     var searchstring = $("#searchtext").val()
     if (searchstring == '') {
@@ -513,62 +587,100 @@ async function searchVideos(page, sortbydate) {
     $("#searchtext").val(searchstring)
     addSearchhistoryItem(searchstring);
 
+    if (sortbydate == false) {
+        requesturl = server + '/api/v1/search?q=' + searchstring + '&page=' + currentpage + '&hl=en-US'
+    }
+    else {
+        requesturl = server + '/api/v1/search?q=' + searchstring + '&sort=date&page=' + currentpage + '&hl=en-US'
+    }
+
+    console.log(requesturl)
+
     let html = `<div id="searchbox">
-                    <input type="text" id="searchtext" name="searchtext" size="14" value="`+ searchstring + `" />
+                    <input type="text" id="searchtext" name="searchtext" size="14" value="`+searchstring+`" />
                     <div class="pwbutton" id="searchbutton" onclick='searchVideos()'>OK</div>
                   </div>
                   <div id="feed"><img src="images/loading.gif" /></div>`;
     $('#content').html(html);
 
-    try {
-        const search = await innertube.search(searchstring);
-
-        let html = `<div id="searchbox">
-                    <input type="text" id="searchtext" name="searchtext" value="`+ searchstring + `" size="14" />
-                    <div class="pwbutton" id="searchbutton" onclick='searchVideos()'>OK</div>
-                  </div>`;
-
-        if (search.results.length == 0) {
-            html += '<div>No results found</div>';
-        }
-
-        for (var i = 0; i < search.results.length; i++) {
-            var element = search.results[i];
-            let type = element.type; // InnerTube types: Video, Channel, Playlist, etc.
-
-            if (type == 'Video') {
-                let title = element.title.text;
-                let author = element.author.name;
-                let published = element.published.text;
-                let videoId = element.id;
-                let image = element.thumbnails[0].url;
-
-                html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + `"/><div class="videoinfo">` + shortStr(title) + '<br/>' + author + '<br/>' + published + `</div></div>`;
-            } else if (type == 'Channel') {
-                let title = element.author.name;
-                let authorId = element.id;
-                let image = element.thumbnails[0].url;
-                html += `<div class="videoitem" onclick='showChannel("` + authorId + `")'><img src="` + image + `" style="height: 176px; width:176px;" /><div class="videoinfo">` + shortStr(title) + `</div></div>`;
+    $.ajax({
+        url: requesturl,
+        type: 'GET',
+        success(response) {
+            let html = `<div id="searchbox">
+                        <input type="text" id="searchtext" name="searchtext" value="`+ searchstring +`" size="14" />
+                        <div class="pwbutton" id="searchbutton" onclick='searchVideos()'>OK</div>
+                      </div>`;
+            if (response.length == 0) {
+                searchVideos(page, false)
             }
-        }
-
-        html += '<div id="spacer"></div>'
-        if (tab == 'search') {
-            $('#content').html(html);
-            $('#searchtext').keydown(function (event) {
-                if (event.which === 13) {
-                    $("#searchtext").blur()
-                    searchVideos()
+            for (var i = 0; i < response.length; i++) {
+                var element = response[i];
+                let type = element.type;
+                let published = element.publishedText;
+                let videoLength = element.lengthSeconds;
+                if (type != 'playlist' && type != 'scheduled' && videoLength != 0) {
+                    if (type == 'livestream' && published == '0 seconds ago') {
+                        let title = 'none';
+                    }
+                    else if (type == 'channel') {
+                        let title = element.author;
+                        let authorId = element.authorId;
+                        let image = 'https://'+element.authorThumbnails[4].url;
+                        html += `<div class="videoitem" onclick='showChannel("` + authorId + `")'><img src="` + image + '" style="height: 176px; width:176px;" /><div class="videoinfo">' + shortStr(title) + '</div></div>';
+                    }
+                    else {
+                        if (published == '0 seconds ago') { published = '';}
+                        let title = element.title;
+                        let author = element.author;
+                        var image = '';
+                        $.each(element.videoThumbnails, function (i, thumbnail) {
+                            if (thumbnail.quality == "medium") {
+                                image = thumbnail.url;
+                                return false; // stops the loop
+                            }
+                        });
+                        let videoId = element.videoId;
+                        html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + '"/><div class="videoinfo">' + shortStr(title) + '<br/>' + author + '<br/>' + published + '</div></div>';
+                    }
                 }
-            });
-            window.scrollTo(0, 0);
-            applySizing();
-        }
+            }
+            
+            html += '<div id="pages">'
+            let startpage = 1;
+            var endpage = 6;
 
-    } catch (error) {
-        console.log('failed to search', error);
-        $('#content').html('failed to search: ' + error.message);
-    }
+            if (currentpage > 3) {
+                startpage = currentpage - 2;
+                endpage = startpage + 5;
+            }
+
+            for (var p = startpage; p < endpage; p++) {
+                if (p == currentpage) {
+                    html += '<div id=page' + p + '" class="pageselector" style="background-color:#999;cursor:auto;">' + p + '</div>';
+                }
+                else {
+                    html += '<div id=page' + p + '" class="pageselector" onclick="searchVideos(' + p + ')">' + p + '</div>';
+                }
+            }
+            html += "</div>"
+            html += '<div id="spacer"></div>'
+            if (tab == 'search') {
+                $('#content').html(html);
+                $('#searchtext').keydown(function (event) {
+                    if (event.which === 13) {
+                        $("#searchtext").blur()
+                        searchVideos()
+                    }
+                });
+                window.scrollTo(0, 0);
+                applySizing();
+            }
+        },
+        error(jqXHR, status, errorThrown) {
+            console.log('failed to fetch ' + requesturl)
+        },
+    });
 }
 
 function videoClick() {
@@ -634,7 +746,7 @@ function addHistoryItem(videoId, videotitle, videothumbnail, authorId, author) {
             newHistory.push(historyitem);
         }
     }
-
+  
     var history_json = {
         "id": videoId,
         "name": videotitle,
@@ -712,7 +824,7 @@ function getDownloads() {
                 authorThumbnail = downloaditem.authorThumbnail;
             }
 
-            printDownload(videoFile, name, image, author, authorId, authorThumbnail, "#" + divid);
+            printDownload(videoFile, name, image, author, authorId, authorThumbnail, "#"+divid);
         }
 
         applySizing();
@@ -910,7 +1022,7 @@ function loadSubscriptions() {
     } else {
         subscriptions = sortByKey(JSON.parse(localStorage.subscriptions), 'author');
         subscriptioncount = subscriptions.length;
-
+        
         if (subscriptioncount > 0) {
             if (subscriptions[0].author === undefined) {
                 console.log('subscriptions saved in old format, starting conversion.. ')
@@ -1021,14 +1133,18 @@ function loadDownloadHistory() {
     }
 }
 
-async function playVideo(id, trycount) {
+function playVideo(id, trycount) {
     videoindex++;
     videoActive = true;
     videoLocation = 'remote';
-
+    let extraOptions = '';
+    if (use_localstreams == 'true') {
+        extraOptions = '&local=true';
+    }
+    let apiurl = server + '/api/v1/videos/' + id + "?hl=en-US" + extraOptions;
     //$("#videotitle").css("margin-top", "20%")
-    $("#videotitle").html('requesting video info ..')
-    console.log('requesting video info for ' + id + ' ..')
+    $("#videotitle").html('requesting from <br/>' + apiurl + ' (try ' + trycount + ') ..')
+    console.log('requesting from ' + apiurl + ' ..')
     $("#videodescription").hide();
     $("#videodescription").html('');
     $("#errortext").hide();
@@ -1039,102 +1155,123 @@ async function playVideo(id, trycount) {
     $("body").css("overflow-y", "hidden");
 
     var playindex = videoindex;
+    $.ajax({
+        url: apiurl,
+        type: 'GET',
+        success(response) {
+            try {
+                let type = response.type;
+                if (type != 'livestream') {
+                    let title = response.title;
+                    let author = response.author;
+                    let authorId = response.authorId;
+                    let authorThumbnail = response.authorThumbnails['2'].url;
+                    let authorThumbnailString = encodeURIComponent(authorThumbnail)
+                    let published = response.publishedText;
+                    var stream = response.formatStreams[0];
+                    var descriptionHtml = response.descriptionHtml;
+                    var audiostream = '';
+                    if (streamquality != '360p') {
+                        console.log('Looking for adaptive format..')
+                        $.each(response.adaptiveFormats, function (i, format) {
+                            if (format.resolution == streamquality && format.encoding == "h264") {
+                                stream = format;
+                                console.log(format);
+                                return false; // stops the loop
+                            }
+                        });
+                    }
+                    $.each(response.adaptiveFormats, function (i, format) {
+                        if (format.container == 'm4a' && audiostream == '') {
+                            audiostream = format;
+                            return false;
+                        }
+                    });
 
-    try {
-        const info = await innertube.getInfo(id);
+                    // channelimage
+                    let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
 
-        if (videoActive && playindex == videoindex) {
-            let basic_info = info.basic_info;
-            let title = basic_info.title;
-            let author = basic_info.author;
-            let authorId = basic_info.channel_id;
-            // InnerTube doesn't always give author thumbnail in basic_info, might need to fetch channel or use a placeholder
-            // But basic_info usually has it? No, it has thumbnails for the video.
-            // We can try to get it from secondary info or just use a default/video thumbnail for now.
-            let authorThumbnail = basic_info.thumbnail ? basic_info.thumbnail[0].url : '';
+                    // overlay title
+                    let infotext = title + `<br/>` + author + ", " + published;
 
-            let published = basic_info.is_live ? "Live" : (basic_info.relative_date || "");
-            let descriptionHtml = (basic_info.short_description || "").replace(/\n/g, "<br/>");
 
-            // channelimage
-            let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
+                    // overlay extra buttons for sharing and liking
+                    let sharelink = 'https://youtu.be/' + id
+                    var likeimage = '';
+                    if (isSubscribed(authorId)) {
+                        likeimage = 'images/heart-filled-red.png';
+                    }
+                    else {
+                        likeimage = 'images/heart-empty.png';
+                    }
+                    let likebuttons = `<div id="likebutton" class="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div>`;
+                    let videourl = stream.url;
+                    var downloadurl = response.formatStreams[0].url;
+                    let videoname = (title + '.mp4').replace(/['/\\?#%*:|"<>]+/g, '-')
+                    let name = title.replace(/['/\\?#%*:|"<>]+/g, '-')
 
-            // overlay title
-            let infotext = title + `<br/>` + author + ", " + published;
+                    var image = '';
+                    $.each(response.videoThumbnails, function (i, thumbnail) {
+                        if (thumbnail.quality == "medium") {
+                            image = thumbnail.url;
+                            return false; // stops the loop
+                        }
+                    });
 
-            // overlay extra buttons for sharing and liking
-            let sharelink = 'https://youtu.be/' + id
-            var likeimage = '';
-            if (isSubscribed(authorId)) {
-                likeimage = 'images/heart-filled-red.png';
+                    let sharebuttons = `<div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div>`;
+                    let downloadbuttons = `<div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `","` + name + `","` + image + `","` + author + `","` + authorId + `","` + authorThumbnail + `")'><img src="images/download.png"></div>`;
+
+                    if (videoActive && playindex == videoindex) {
+                        $('#videofile').attr('src', stream.url);
+                        $('#audiofile').attr('src', audiostream.url);
+                        $("#loadingimage").hide();
+
+                        $("#channelimage").html(channelimage);
+                        $("#videotitle").html(infotext);
+                        $("#likespace").html(likebuttons);
+                        $("#sharespace").html(sharebuttons);
+                        $("#downloadspace").html(downloadbuttons);
+                        $("#videodescription").html(descriptionHtml);
+                        videoResize()
+                        $("#videofile").show();
+
+                        addHistoryItem(id, title, image, authorId, author);
+                    }
+
+                }
+                else {
+                    if (videoActive) {
+                        $("#videotitle").css("margin-top", "40%")
+                        $("#videotitle").html('Livestreams are not supported yet.')
+                        $("#loadingimage").hide();
+                    }
+                }
+            }
+            catch (e) {
+                $("#loadingimage").hide();
+                $("#errortext").html('Could not fetch video details from server. Please try again later or switch to another server.');
+                $("#errortext").show();
+            }
+        },
+        error(jqXHR, status, errorThrown) {
+            if (trycount < 1) {
+                if (videoActive) {
+                    console.log('failed to fetch ' + apiurl + '. Will retry in 2s ..')
+                    $("#videotitle").html('failed to fetch <br/>' + apiurl + '. Will retry in 2s ..')
+                    trycount++;
+                    setTimeout(playVideo(id, trycount), 2000)
+                }
             }
             else {
-                likeimage = 'images/heart-empty.png';
-            }
-            let likebuttons = `<div id="likebutton" class="likebutton" onclick='toggleChannel("` + authorId + `","` + author + `","` + authorThumbnail + `", "videoplayer")'><img src="` + likeimage + `"></div>`;
-
-            // Get streams
-            let format = null;
-            let audioFormat = null;
-
-            try {
-                // Try to get combined format first (muxed)
-                format = info.chooseFormat({ type: 'video+audio', quality: streamquality === '360p' ? '360p' : 'best' });
-                if (!format) {
-                    // Fallback to adaptive
-                    format = info.chooseFormat({ type: 'video', quality: streamquality === '360p' ? '360p' : 'best' });
-                    audioFormat = info.chooseFormat({ type: 'audio' });
+                if (videoActive) {
+                    console.log('failed to fetch ' + apiurl + '. Tried it for 10 times.')
+                    $("#loadingimage").hide();
+                    $("#errortext").html('Could not fetch video. Please check your connection or try another server from the settings');
+                    $("#errortext").show();
                 }
-            } catch (e) {
-                console.log("Could not find preferred format, trying best available", e);
-                format = info.chooseFormat({ type: 'video+audio' });
             }
-
-            if (format) {
-                let videourl = format.decipher(innertube.session.player);
-                let audiourl = audioFormat ? audioFormat.decipher(innertube.session.player) : '';
-
-                // For download, use the video url
-                let downloadurl = videourl;
-                let videoname = (title + '.mp4').replace(/['/\\?#%*:|"<>]+/g, '-')
-                let name = title.replace(/['/\\?#%*:|"<>]+/g, '-')
-                let image = basic_info.thumbnail ? basic_info.thumbnail[0].url : '';
-
-                let sharebuttons = `<div id="sharebutton" onclick='copyToClipboard("` + sharelink + `")'><img src="images/link.png"></div>`;
-                let downloadbuttons = `<div id="downloadbutton" onclick='downloadVideo("` + downloadurl + `","` + videoname + `","` + name + `","` + image + `","` + author + `","` + authorId + `","` + authorThumbnail + `")'><img src="images/download.png"></div>`;
-
-                $('#videofile').attr('src', videourl);
-                if (audiourl) {
-                    $('#audiofile').attr('src', audiourl);
-                } else {
-                    $('#audiofile').attr('src', '');
-                }
-
-                $("#loadingimage").hide();
-
-                $("#channelimage").html(channelimage);
-                $("#videotitle").html(infotext);
-                $("#likespace").html(likebuttons);
-                $("#sharespace").html(sharebuttons);
-                $("#downloadspace").html(downloadbuttons);
-                $("#videodescription").html(descriptionHtml);
-                videoResize()
-                $("#videofile").show();
-
-                addHistoryItem(id, title, image, authorId, author);
-            } else {
-                throw new Error("No suitable video streams found");
-            }
-        }
-
-    } catch (error) {
-        console.error(error);
-        if (videoActive) {
-            $("#loadingimage").hide();
-            $("#errortext").html('Could not fetch video: ' + error.message);
-            $("#errortext").show();
-        }
-    }
+        },
+    });
 }
 
 function playDownload(fileName, title, author, authorId, authorThumbnail) {
@@ -1145,14 +1282,14 @@ function playDownload(fileName, title, author, authorId, authorThumbnail) {
     let downloadPath = downloadFolder.replace(/\\/g, "/");
     let videosource = downloadFolder + '\\' + fileName;
     //let videosource = 'file:///' + downloadPath + '/' + fileName;
-
+    
     $("#videodescription").hide();
     $("#videodescription").html('');
     $("#errortext").hide();
     $("#videoplayer").show();
     $("#closevideo").show();
     $("#videofile").hide();
-    $("body").css("overflow-y", "hidden");
+    $("body").css("overflow-y", "hidden");    
 
     // channelimage
     let channelimage = `<img src="` + authorThumbnail + `" onclick='showChannel("` + authorId + `")'/>`
@@ -1176,7 +1313,7 @@ function playDownload(fileName, title, author, authorId, authorThumbnail) {
         catch (error) {
             console.log("Error accessing file: " + error.message);
         };
-
+        
         console.log(videosource);
         $("#loadingimage").hide();
         $("#channelimage").html(channelimage);
@@ -1407,7 +1544,7 @@ function videoResize() {
     $("#videotitle").css("left", (titlesize * 3) + "px")
     $("#videotitle").css("height", (titlesize * 3) + "px")
     $("#videotitle").css("right", titleright + "px")
-    $("#videotitle").css("font-size", (titlesize / 1.5) + "px")
+    $("#videotitle").css("font-size", (titlesize / 1.5 ) + "px")
 
     $("#closevideo").css("height", (extrasize * 3) + "px")
     $("#closevideo").css("width", (extrasize * 3) + "px")
@@ -1557,7 +1694,7 @@ function formatDuration(seconds) {
     if (seconds < 10) {
         seconds = "0" + seconds;
     }
-
+ 
     if (hours == "00") {
         output = minutes + ":" + seconds;
     } else {
@@ -1636,7 +1773,7 @@ function showControls() {
             $("#pause").show();
             $("#play").hide();
             timeoutid = setTimeout(hideControls, 4000);
-        }
+        }   
     }
     else {
         closeVideoplayer();
@@ -1678,7 +1815,7 @@ function showChannel(id) {
     closeVideoplayer();
     $("#channelviewer").show();
     $("#channelcontent").html('<img src="images/loading.gif" />')
-    let requesturl = server + '/api/v1/channels/' + id + '?hl=en-US'
+    let requesturl = server + '/api/v1/channels/'+id+'?hl=en-US'
 
     $.ajax({
         url: requesturl,
@@ -1689,23 +1826,23 @@ function showChannel(id) {
             let authorThumbnail = response.authorThumbnails[3].url;
             let latest = response.latestVideos;
             let availabletabs = response.tabs;
-
+            
             var channelheader = `<table style="width:100%"><tr>
                                     <td style="width:10%">`;
 
-            if (isSubscribed(id)) {
-                likeimage = 'images/heart-filled-red.png';
-            }
-            else {
-                likeimage = 'images/heart-empty.png';
-            }
+                                    if (isSubscribed(id)) {
+                                        likeimage = 'images/heart-filled-red.png';
+                                    }
+                                    else {
+                                        likeimage = 'images/heart-empty.png';
+                                    }
             channelheader += `<div id="likebutton" class="likebutton" onclick='toggleChannel("` + id + `","` + author + `","` + authorThumbnail + `", "channelviewer")'><img src="` + likeimage + `"></div>`;
             channelheader += `</td>
                               <td style="width:20%"><img src="` + authorThumbnail + `" /></td>
                               <td style="font-size:1.5em;font-weight:bold">`+ author + `</td>
                               </tr></table>`;
 
-            var tablist = `<div id="channelvideos" class="channeltab" style="background-color: Highlight" onclick='showChannel("` + id + `")'><img src="images/title_videos.png" style="height:100%;" /></div>`;
+            var tablist = `<div id="channelvideos" class="channeltab" style="background-color: Highlight" onclick='showChannel("` + id +`")'><img src="images/title_videos.png" style="height:100%;" /></div>`;
             for (var t = 0; t < availabletabs.length; t++) {
                 let tabname = availabletabs[t];
                 switch (tabname) {
@@ -1713,7 +1850,7 @@ function showChannel(id) {
                         html += '<div class="channeltab">videos</div>';
                         break;*/
                     case "streams":
-                        tablist += `<div id="channelstreams" class="channeltab" onclick='showChannelStreams("` + id + `")'><img src="images/title_streams.png" style="height:100%;" /></div>`;
+                        tablist += `<div id="channelstreams" class="channeltab" onclick='showChannelStreams("` + id +`")'><img src="images/title_streams.png" style="height:100%;" /></div>`;
                         break;
                 }
             }
@@ -1772,7 +1909,7 @@ function showChannelStreams(id) {
                     let videoId = element.videoId;
                     html += `<div class="videoitem" onclick='playVideo("` + videoId + `", 1)'><img src="` + image + '"/><div class="videoinfo">' + shortStr(title) + '<br/>' + publishedText + '</div></div>';
                 }
-
+                
             }
             $("#channelcontent").html(html)
             applySizing();
@@ -1829,8 +1966,8 @@ function printDownload(fileName, name, image, author, authorId, authorThumbnail,
         folder.tryGetItemAsync(fileName).then(function (testFile) {
             if (testFile !== null) {
                 var html = `<div class="videoitem" style="width: 100%; font-size: 16px;">
-                            <img src="`+ image + `" onclick='playDownload("` + fileName + `", "` + name + `", "` + author + `", "` + authorId + `", "` + authorThumbnail + `")' />
-                            <div class="videoinfo" style="height: 3em;"><table style="width:100%;height:100%;"><tr><td style="width:90%" onclick='playDownload("` + fileName + `", "` + name + `", "` + author + `", "` + authorId + `", "` + authorThumbnail + `")'>` + microStr(name) + `<br/>` + author + `</td><td style="width:10%;background-color:Highlight" onclick='removeDownload("` + fileName + `")'>X</td></tr></table></div>
+                            <img src="`+ image + `" onclick='playDownload("` + fileName + `", "` + name + `", "` + author + `", "` + authorId + `", "` + authorThumbnail +`")' />
+                            <div class="videoinfo" style="height: 3em;"><table style="width:100%;height:100%;"><tr><td style="width:90%" onclick='playDownload("` + fileName + `", "` + name + `", "` + author + `", "` + authorId + `", "` + authorThumbnail +`")'>` + microStr(name) + `<br/>` + author + `</td><td style="width:10%;background-color:Highlight" onclick='removeDownload("`+fileName+`")'>X</td></tr></table></div>
                             </div>`;
                 $(divName).html(html)
                 applySizing();
@@ -1980,7 +2117,7 @@ $(document).ready(function () {
         var currentView = Windows.UI.Core.SystemNavigationManager.getForCurrentView();
         currentView.appViewBackButtonVisibility = Windows.UI.Core.AppViewBackButtonVisibility.visible;
     }
-    catch (e) {
+    catch(e) {
         console.log('Windows namespace not available, backbutton listener and versioninfo skipped.')
         appstring = 'n/a';
     }
