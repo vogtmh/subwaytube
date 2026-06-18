@@ -7,92 +7,259 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <Grid Grid.Row="0" Background="#111111" Padding="12,8">
-            <TextBlock Text="subwayTube" FontSize="20" FontWeight="Bold"
-                       Foreground="White" VerticalAlignment="Center" />
-        </Grid>
-
-        <!-- Search bar -->
-        <Grid Grid.Row="1" Background="#1a1a1a" Padding="12,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-
-            <TextBox x:Name="SearchBox"
-                     PlaceholderText="Search YouTube..."
-                     KeyDown="SearchBox_KeyDown"
-                     FontSize="16" />
-
-            <Button x:Name="SearchButton"
-                    Grid.Column="1"
-                    Content="Search"
-                    Click="SearchButton_Click"
-                    Margin="8,0,0,0" />
+            <TextBlock Text="subwayTube" FontSize="20" FontWeight="Bold"
+                       Foreground="White" VerticalAlignment="Center" />
+            <Button x:Name="RefreshButton" Grid.Column="1"
+                    Click="RefreshButton_Click" Background="Transparent"
+                    Margin="4,0,0,0" Visibility="Collapsed">
+                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72C;" FontSize="18" Foreground="White" />
+            </Button>
         </Grid>
 
-        <!-- Loading indicator -->
-        <ProgressRing x:Name="LoadingRing"
-                      Grid.Row="2"
-                      IsActive="False"
-                      Width="50" Height="50"
-                      Foreground="White"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center" />
-
-        <!-- Error message -->
-        <TextBlock x:Name="ErrorText"
-                   Grid.Row="2"
-                   Visibility="Collapsed"
-                   Foreground="Red"
-                   FontSize="14"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Margin="20" />
-
-        <!-- Search results -->
-        <ListView x:Name="ResultsList"
-                  Grid.Row="2"
-                  Background="Transparent"
-                  ItemClick="ResultsList_ItemClick"
-                  IsItemClickEnabled="True"
-                  SelectionMode="None">
-            <ListView.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Orientation="Horizontal" Padding="8">
-                        <Image Source="{Binding ThumbnailUrl}"
-                               Width="160" Height="90"
-                               Stretch="UniformToFill" />
-                        <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}"
-                                       Foreground="White"
-                                       FontSize="14"
-                                       TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding Author}"
-                                       Foreground="Gray"
-                                       FontSize="12"
-                                       Margin="0,4,0,0" />
-                            <TextBlock Text="{Binding Duration}"
-                                       Foreground="Gray"
-                                       FontSize="11"
-                                       Margin="0,2,0,0" />
+        <!-- ==================== FEED PANEL ==================== -->
+        <Grid x:Name="FeedPanel" Grid.Row="1" Visibility="Visible">
+            <ProgressRing x:Name="FeedLoadingRing" IsActive="False"
+                          Width="50" Height="50" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <TextBlock x:Name="FeedEmptyText" Visibility="Collapsed"
+                       Text="Follow channels to build your feed"
+                       Foreground="Gray" FontSize="16"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="40" TextAlignment="Center" />
+            <ListView x:Name="FeedList" Background="Transparent"
+                      ItemClick="FeedList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Padding="8">
+                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="11" Margin="0,2,0,0" />
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
 
-        <!-- Video player overlay -->
-        <Grid x:Name="PlayerOverlay"
-              Grid.RowSpan="3"
-              Background="Black"
-              Visibility="Collapsed">
+        <!-- ==================== SEARCH PANEL ==================== -->
+        <Grid x:Name="SearchPanel" Grid.Row="1" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Background="#1a1a1a" Padding="12,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="SearchBox" PlaceholderText="Search YouTube..."
+                         KeyDown="SearchBox_KeyDown" FontSize="16" />
+                <Button x:Name="SearchButton" Grid.Column="1" Content="Search"
+                        Click="SearchButton_Click" Margin="8,0,0,0" />
+            </Grid>
+
+            <ProgressRing x:Name="LoadingRing" Grid.Row="1" IsActive="False"
+                          Width="50" Height="50" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <TextBlock x:Name="ErrorText" Grid.Row="1" Visibility="Collapsed"
+                       Foreground="Red" FontSize="14" TextWrapping="Wrap"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20" />
+
+            <!-- Search history -->
+            <ListView x:Name="SearchHistoryList" Grid.Row="1" Background="Transparent"
+                      ItemClick="SearchHistoryList_ItemClick" IsItemClickEnabled="True"
+                      SelectionMode="None" Visibility="Collapsed">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding Query}" Foreground="White" FontSize="16"
+                                   Padding="12,10" />
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- Search results -->
+            <ListView x:Name="ResultsList" Grid.Row="1" Background="Transparent"
+                      ItemClick="ResultsList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Padding="8">
+                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding Duration}" Foreground="Gray" FontSize="11" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- ==================== FAVORITES PANEL ==================== -->
+        <Grid x:Name="FavoritesPanel" Grid.Row="1" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Sub-tabs -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="FavChannelsTab" Grid.Column="0" Content="Channels"
+                        Click="FavChannelsTab_Click" HorizontalAlignment="Stretch"
+                        Background="{ThemeResource SystemAccentColor}" Foreground="White" />
+                <Button x:Name="FavHistoryTab" Grid.Column="1" Content="History"
+                        Click="FavHistoryTab_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+            </Grid>
+
+            <TextBlock x:Name="FavEmptyText" Grid.Row="1" Visibility="Collapsed"
+                       Foreground="Gray" FontSize="16"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" Margin="40" TextAlignment="Center" />
+
+            <!-- Channels list -->
+            <ListView x:Name="ChannelsList" Grid.Row="1" Background="Transparent"
+                      ItemClick="ChannelsList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Ellipse Grid.Column="0" Width="40" Height="40">
+                                <Ellipse.Fill>
+                                    <ImageBrush ImageSource="{Binding ThumbnailUrl}" />
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Grid.Column="1" Text="{Binding Author}" Foreground="White"
+                                       FontSize="16" VerticalAlignment="Center" Margin="12,0,0,0" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- History list -->
+            <ListView x:Name="HistoryList" Grid.Row="1" Background="Transparent"
+                      ItemClick="HistoryList_ItemClick" IsItemClickEnabled="True"
+                      SelectionMode="None" Visibility="Collapsed">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Padding="8">
+                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- ==================== BOTTOM NAVIGATION ==================== -->
+        <Grid Grid.Row="2" Background="#111111">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="NavFeed" Grid.Column="0" Click="NavFeed_Click"
+                    HorizontalAlignment="Stretch" Height="50"
+                    Background="{ThemeResource SystemAccentColor}">
+                <StackPanel>
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE80F;" FontSize="20" Foreground="White" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="NavSearch" Grid.Column="1" Click="NavSearch_Click"
+                    HorizontalAlignment="Stretch" Height="50" Background="#111111">
+                <StackPanel>
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE721;" FontSize="20" Foreground="White" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="NavFavorites" Grid.Column="2" Click="NavFavorites_Click"
+                    HorizontalAlignment="Stretch" Height="50" Background="#111111">
+                <StackPanel>
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE734;" FontSize="20" Foreground="White" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <!-- ==================== CHANNEL VIEWER OVERLAY ==================== -->
+        <Grid x:Name="ChannelOverlay" Grid.RowSpan="3" Background="Black" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Background="#111111" Padding="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Click="CloseChannel_Click" Background="Transparent">
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72B;" FontSize="18" Foreground="White" />
+                </Button>
+                <Ellipse Grid.Column="1" Width="36" Height="36" Margin="8,0">
+                    <Ellipse.Fill>
+                        <ImageBrush x:Name="ChannelAvatar" />
+                    </Ellipse.Fill>
+                </Ellipse>
+                <TextBlock x:Name="ChannelName" Grid.Column="2" Foreground="White"
+                           FontSize="16" FontWeight="Bold" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" />
+                <Button x:Name="ChannelSubscribeBtn" Grid.Column="3" Click="ChannelSubscribe_Click"
+                        Background="Transparent" Margin="4,0">
+                    <FontIcon x:Name="ChannelHeartIcon" FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xEB51;" FontSize="22" Foreground="White" />
+                </Button>
+                <Button Grid.Column="4" Click="CloseChannel_Click" Background="Transparent">
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE711;" FontSize="16" Foreground="White" />
+                </Button>
+            </Grid>
+
+            <ProgressRing x:Name="ChannelLoadingRing" Grid.Row="1" IsActive="False"
+                          Width="50" Height="50" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <ListView x:Name="ChannelVideosList" Grid.Row="1" Background="Transparent"
+                      ItemClick="ChannelVideosList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Padding="8">
+                            <Image Source="{Binding ThumbnailUrl}" Width="160" Height="90" Stretch="UniformToFill" />
+                            <StackPanel Margin="10,0,0,0" VerticalAlignment="Center" MaxWidth="220">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <!-- ==================== VIDEO PLAYER OVERLAY ==================== -->
+        <Grid x:Name="PlayerOverlay" Grid.RowSpan="3" Background="Black" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -105,80 +272,57 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-
-                <Button x:Name="ClosePlayerButton"
-                        Grid.Column="0"
-                        Content="Back"
-                        Click="ClosePlayerButton_Click"
-                        Margin="4" />
-
-                <ComboBox x:Name="QualitySelector"
-                          Grid.Column="2"
-                          PlaceholderText="Quality"
+                <Button x:Name="ClosePlayerButton" Grid.Column="0" Click="ClosePlayerButton_Click" Margin="4" Background="Transparent">
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72B;" FontSize="18" Foreground="White" />
+                </Button>
+                <ComboBox x:Name="QualitySelector" Grid.Column="2" PlaceholderText="Quality"
                           SelectionChanged="QualitySelector_SelectionChanged"
-                          MinWidth="120"
-                          Margin="4"
-                          VerticalAlignment="Center" />
+                          MinWidth="120" Margin="4" VerticalAlignment="Center" />
             </Grid>
 
-            <MediaPlayerElement x:Name="VideoPlayer"
-                                Grid.Row="1"
-                                AreTransportControlsEnabled="True"
-                                AutoPlay="True"
-                                Stretch="Uniform" />
+            <MediaPlayerElement x:Name="VideoPlayer" Grid.Row="1"
+                                AreTransportControlsEnabled="True" AutoPlay="True" Stretch="Uniform" />
+            <ProgressRing x:Name="PlayerLoadingRing" Grid.Row="1" IsActive="False"
+                          Width="50" Height="50" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
 
-            <ProgressRing x:Name="PlayerLoadingRing"
-                          Grid.Row="1"
-                          IsActive="False"
-                          Width="50" Height="50"
-                          Foreground="White"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Center" />
-
-            <StackPanel Grid.Row="2" Background="#111111" Padding="12">
-                <TextBlock x:Name="PlayerTitle"
-                           Foreground="White"
-                           FontSize="16"
-                           TextWrapping="Wrap" />
-                <TextBlock x:Name="PlayerVideoTitle"
-                           Foreground="White"
-                           FontSize="14"
-                           TextWrapping="Wrap" />
-                <TextBlock x:Name="PlayerVideoAuthor"
-                           Foreground="Gray"
-                           FontSize="13"
-                           Margin="0,4,0,0" />
-            </StackPanel>
+            <Grid Grid.Row="2" Background="#111111" Padding="12,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock x:Name="PlayerTitle" Foreground="White" FontSize="16" TextWrapping="Wrap" Visibility="Collapsed" />
+                    <TextBlock x:Name="PlayerVideoTitle" Foreground="White" FontSize="14" TextWrapping="Wrap" />
+                    <TextBlock x:Name="PlayerVideoAuthor" Foreground="Gray" FontSize="13" Margin="0,4,0,0" />
+                </StackPanel>
+                <Button x:Name="PlayerSubscribeBtn" Grid.Column="1" Click="PlayerSubscribe_Click"
+                        Background="Transparent" VerticalAlignment="Top" Margin="4,0">
+                    <FontIcon x:Name="PlayerHeartIcon" FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xEB51;" FontSize="22" Foreground="White" />
+                </Button>
+                <Button x:Name="PlayerShareBtn" Grid.Column="2" Click="PlayerShare_Click"
+                        Background="Transparent" VerticalAlignment="Top" Margin="4,0">
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72D;" FontSize="20" Foreground="White" />
+                </Button>
+            </Grid>
         </Grid>
 
-        <!-- Debug overlay (fullscreen, scrollable) -->
-        <Grid x:Name="DebugOverlay"
-              Grid.RowSpan="3"
-              Background="Black"
-              Visibility="Collapsed">
+        <!-- ==================== DEBUG OVERLAY ==================== -->
+        <Grid x:Name="DebugOverlay" Grid.RowSpan="3" Background="Black" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-
             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8">
-                <Button Content="Close"
-                        Click="CloseDebug_Click" />
-                <Button Content="Copy"
-                        Click="CopyDebug_Click"
-                        Margin="8,0,0,0" />
-                <Button Content="Save"
-                        Click="SaveDebug_Click"
-                        Margin="8,0,0,0" />
+                <Button Content="Close" Click="CloseDebug_Click" />
+                <Button Content="Copy" Click="CopyDebug_Click" Margin="8,0,0,0" />
+                <Button Content="Save" Click="SaveDebug_Click" Margin="8,0,0,0" />
             </StackPanel>
-
             <ScrollViewer Grid.Row="1" Margin="8">
-                <TextBlock x:Name="DebugText"
-                           Foreground="#00FF00"
-                           FontSize="11"
-                           FontFamily="Consolas"
-                           TextWrapping="Wrap"
-                           IsTextSelectionEnabled="True" />
+                <TextBlock x:Name="DebugText" Foreground="#00FF00" FontSize="11"
+                           FontFamily="Consolas" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
             </ScrollViewer>
         </Grid>
     </Grid>

@@ -5,8 +5,11 @@ namespace subwayTube.Models
         public string VideoId { get; set; }
         public string Title { get; set; }
         public string Author { get; set; }
+        public string AuthorId { get; set; }
         public string Duration { get; set; }
         public string ThumbnailUrl { get; set; }
         public string ViewCount { get; set; }
+        public string PublishedText { get; set; }
+        public string AuthorThumbnailUrl { get; set; }
     }
 }

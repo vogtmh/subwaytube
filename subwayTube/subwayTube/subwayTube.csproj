@@ -100,6 +100,8 @@
     </Compile>
     <Compile Include="Models\VideoResult.cs" />
     <Compile Include="Models\StreamFormat.cs" />
+    <Compile Include="Models\Subscription.cs" />
+    <Compile Include="Services\DataService.cs" />
     <Compile Include="Services\DashManifestGenerator.cs" />
     <Compile Include="Services\InnerTubeService.cs" />
     <Compile Include="Services\IosUserAgentFilter.cs" />

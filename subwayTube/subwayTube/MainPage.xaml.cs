@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading;
 using Windows.Media.Core;
 using Windows.Media.Streaming.Adaptive;
 using Windows.Storage.Streams;
@@ -11,6 +12,7 @@ using Windows.UI.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media.Imaging;
 using subwayTube.Models;
 using subwayTube.Services;
 
@@ -19,10 +21,16 @@ namespace subwayTube
     public sealed partial class MainPage : Page
     {
         private readonly InnerTubeService _innerTube = new InnerTubeService();
+        private readonly DataService _data = new DataService();
         private readonly ObservableCollection<VideoResult> _results = new ObservableCollection<VideoResult>();
+        private readonly ObservableCollection<VideoResult> _feedItems = new ObservableCollection<VideoResult>();
         private bool _isPlayerOpen;
+        private bool _isChannelOpen;
         private List<StreamFormat> _currentFormats;
         private string _currentVideoId;
+        private string _currentAuthorId;
+        private string _currentAuthor;
+        private string _currentThumbnailUrl;
         private bool _ignoreQualityChange;
         private PlayerResponse _lastPlayerResponse;
         private string _lastPlayedUrl;
@@ -30,22 +38,162 @@ namespace subwayTube
         private string _cachedHlsUrl;
         private StreamFormat _cachedMuxedFormat;
         private readonly Windows.Web.Http.HttpClient _streamClient;
+        private int _activeTab; // 0=Feed, 1=Search, 2=Favorites
+        private int _favSubTab; // 0=Channels, 1=History
+        private bool _feedLoaded;
+        private static readonly Windows.UI.Xaml.Media.SolidColorBrush _darkBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 17, 17, 17));
+        private static readonly Windows.UI.Xaml.Media.SolidColorBrush _darkGrayBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 51, 51, 51));
+        private static readonly Windows.UI.Xaml.Media.SolidColorBrush _accentBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 120, 215));
 
         public MainPage()
         {
             this.InitializeComponent();
             ResultsList.ItemsSource = _results;
+            FeedList.ItemsSource = _feedItems;
 
-            // HTTP client with IOS User-Agent filter — ensures ALL requests
-            // (including AdaptiveMediaSource Range requests) get the correct UA
             _streamClient = new Windows.Web.Http.HttpClient(new IosUserAgentFilter());
 
-            // Handle hardware back button (Windows 10 Mobile)
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
-
-            // Handle media playback failures
             VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
+
+            // Load data and show feed
+            InitAsync();
         }
+
+        private async void InitAsync()
+        {
+            await _data.LoadAllAsync();
+            ChannelsList.ItemsSource = _data.Subscriptions;
+            HistoryList.ItemsSource = _data.History;
+            await LoadFeedAsync();
+        }
+
+        // ==================== TAB SWITCHING ====================
+
+        private void NavFeed_Click(object sender, RoutedEventArgs e) { ShowFeed(); }
+        private void NavSearch_Click(object sender, RoutedEventArgs e) { ShowSearch(); }
+        private void NavFavorites_Click(object sender, RoutedEventArgs e) { ShowFavorites(); }
+
+        private void ShowFeed()
+        {
+            _activeTab = 0;
+            FeedPanel.Visibility = Visibility.Visible;
+            SearchPanel.Visibility = Visibility.Collapsed;
+            FavoritesPanel.Visibility = Visibility.Collapsed;
+            NavFeed.Background = _accentBrush;
+            NavSearch.Background = _darkBrush;
+            NavFavorites.Background = _darkBrush;
+            RefreshButton.Visibility = Visibility.Visible;
+            UpdateBackButtonVisibility();
+        }
+
+        private void ShowSearch()
+        {
+            _activeTab = 1;
+            FeedPanel.Visibility = Visibility.Collapsed;
+            SearchPanel.Visibility = Visibility.Visible;
+            FavoritesPanel.Visibility = Visibility.Collapsed;
+            NavFeed.Background = _darkBrush;
+            NavSearch.Background = _accentBrush;
+            NavFavorites.Background = _darkBrush;
+            RefreshButton.Visibility = Visibility.Collapsed;
+            UpdateSearchHistoryVisibility();
+            UpdateBackButtonVisibility();
+        }
+
+        private void ShowFavorites()
+        {
+            _activeTab = 2;
+            FeedPanel.Visibility = Visibility.Collapsed;
+            SearchPanel.Visibility = Visibility.Collapsed;
+            FavoritesPanel.Visibility = Visibility.Visible;
+            NavFeed.Background = _darkBrush;
+            NavSearch.Background = _darkBrush;
+            NavFavorites.Background = _accentBrush;
+            RefreshButton.Visibility = Visibility.Collapsed;
+            UpdateFavoritesView();
+            UpdateBackButtonVisibility();
+        }
+
+        // ==================== FEED ====================
+
+        private async System.Threading.Tasks.Task LoadFeedAsync()
+        {
+            if (_data.Subscriptions.Count == 0)
+            {
+                FeedEmptyText.Visibility = Visibility.Visible;
+                FeedList.Visibility = Visibility.Collapsed;
+                _feedLoaded = true;
+                return;
+            }
+
+            FeedEmptyText.Visibility = Visibility.Collapsed;
+            FeedLoadingRing.IsActive = true;
+            FeedList.Visibility = Visibility.Collapsed;
+
+            var allVideos = new List<VideoResult>();
+            var semaphore = new SemaphoreSlim(5);
+            var tasks = new List<System.Threading.Tasks.Task>();
+
+            foreach (var sub in _data.Subscriptions.ToList())
+            {
+                tasks.Add(System.Threading.Tasks.Task.Run(async () =>
+                {
+                    await semaphore.WaitAsync();
+                    try
+                    {
+                        var videos = await _innerTube.GetChannelVideosAsync(sub.AuthorId);
+                        lock (allVideos)
+                        {
+                            allVideos.AddRange(videos);
+                        }
+                    }
+                    catch { }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }));
+            }
+
+            await System.Threading.Tasks.Task.WhenAll(tasks);
+
+            // Sort by published text (rough sort — newest first)
+            // Take top 50
+            var sorted = allVideos.Take(50).ToList();
+
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+            {
+                _feedItems.Clear();
+                foreach (var v in sorted)
+                    _feedItems.Add(v);
+
+                FeedLoadingRing.IsActive = false;
+                FeedList.Visibility = Visibility.Visible;
+                _feedLoaded = true;
+
+                if (_feedItems.Count == 0)
+                {
+                    FeedEmptyText.Text = "No recent videos from your channels";
+                    FeedEmptyText.Visibility = Visibility.Visible;
+                }
+            });
+        }
+
+        private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            _feedLoaded = false;
+            await LoadFeedAsync();
+        }
+
+        private async void FeedList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var video = e.ClickedItem as VideoResult;
+            if (video == null) return;
+            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId);
+        }
+
+        // ==================== SEARCH ====================
 
         private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
@@ -55,9 +203,7 @@ namespace subwayTube
         private async void SearchBox_KeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (e.Key == VirtualKey.Enter)
-            {
                 await PerformSearch();
-            }
         }
 
         private async System.Threading.Tasks.Task PerformSearch()
@@ -69,12 +215,17 @@ namespace subwayTube
             string directVideoId = ExtractVideoId(query);
             if (directVideoId != null)
             {
-                await PlayVideo(directVideoId, query, "", "");
+                await PlayVideo(directVideoId, query, "", "", "");
                 return;
             }
 
+            // Save search history
+            await _data.AddSearchHistoryItem(query);
+
             _results.Clear();
             ErrorText.Visibility = Visibility.Collapsed;
+            SearchHistoryList.Visibility = Visibility.Collapsed;
+            ResultsList.Visibility = Visibility.Visible;
             LoadingRing.IsActive = true;
 
             try
@@ -100,25 +251,194 @@ namespace subwayTube
             }
         }
 
+        private void UpdateSearchHistoryVisibility()
+        {
+            if (_results.Count == 0 && _data.SearchHistory.Count > 0)
+            {
+                SearchHistoryList.ItemsSource = _data.SearchHistory.AsEnumerable().Reverse().ToList();
+                SearchHistoryList.Visibility = Visibility.Visible;
+                ResultsList.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                SearchHistoryList.Visibility = Visibility.Collapsed;
+                ResultsList.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async void SearchHistoryList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var item = e.ClickedItem as SearchHistoryItem;
+            if (item == null) return;
+            SearchBox.Text = item.Query;
+            await PerformSearch();
+        }
+
         private async void ResultsList_ItemClick(object sender, ItemClickEventArgs e)
         {
             var video = e.ClickedItem as VideoResult;
             if (video == null) return;
-            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl);
+            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId);
         }
 
-        private async System.Threading.Tasks.Task PlayVideo(string videoId, string title, string author, string thumbnailUrl)
+        // ==================== FAVORITES ====================
+
+        private void FavChannelsTab_Click(object sender, RoutedEventArgs e)
+        {
+            _favSubTab = 0;
+            UpdateFavoritesView();
+        }
+
+        private void FavHistoryTab_Click(object sender, RoutedEventArgs e)
+        {
+            _favSubTab = 1;
+            UpdateFavoritesView();
+        }
+
+        private void UpdateFavoritesView()
+        {
+            if (_favSubTab == 0)
+            {
+                FavChannelsTab.Background = _accentBrush;
+                FavHistoryTab.Background = _darkGrayBrush;
+                ChannelsList.Visibility = Visibility.Visible;
+                HistoryList.Visibility = Visibility.Collapsed;
+                ChannelsList.ItemsSource = _data.Subscriptions;
+
+                if (_data.Subscriptions.Count == 0)
+                {
+                    FavEmptyText.Text = "No subscribed channels yet";
+                    FavEmptyText.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    FavEmptyText.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                FavChannelsTab.Background = _darkGrayBrush;
+                FavHistoryTab.Background = _accentBrush;
+                ChannelsList.Visibility = Visibility.Collapsed;
+                HistoryList.Visibility = Visibility.Visible;
+                HistoryList.ItemsSource = _data.History.AsEnumerable().Reverse().ToList();
+
+                if (_data.History.Count == 0)
+                {
+                    FavEmptyText.Text = "No watch history yet";
+                    FavEmptyText.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    FavEmptyText.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void ChannelsList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var sub = e.ClickedItem as Subscription;
+            if (sub == null) return;
+            OpenChannel(sub.AuthorId, sub.Author, sub.ThumbnailUrl);
+        }
+
+        private async void HistoryList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var item = e.ClickedItem as HistoryItem;
+            if (item == null) return;
+            await PlayVideo(item.VideoId, item.Title, item.Author, item.ThumbnailUrl, item.AuthorId);
+        }
+
+        // ==================== CHANNEL VIEWER ====================
+
+        private async void OpenChannel(string authorId, string author, string thumbnailUrl)
+        {
+            _isChannelOpen = true;
+            ChannelOverlay.Visibility = Visibility.Visible;
+            ChannelName.Text = author;
+            ChannelLoadingRing.IsActive = true;
+            ChannelVideosList.Visibility = Visibility.Collapsed;
+            UpdateBackButtonVisibility();
+
+            try
+            {
+                ChannelAvatar.ImageSource = new BitmapImage(new Uri(thumbnailUrl));
+            }
+            catch { }
+
+            // Update heart icon
+            ChannelHeartIcon.Glyph = _data.IsSubscribed(authorId) ? "\uEB52" : "\uEB51";
+
+            // Store for subscribe toggle
+            _currentAuthorId = authorId;
+            _currentAuthor = author;
+            _currentThumbnailUrl = thumbnailUrl;
+
+            try
+            {
+                var videos = await _innerTube.GetChannelVideosAsync(authorId);
+                ChannelVideosList.ItemsSource = videos;
+                ChannelVideosList.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                ChannelName.Text = author + " - Error: " + ex.Message;
+            }
+            finally
+            {
+                ChannelLoadingRing.IsActive = false;
+            }
+        }
+
+        private void CloseChannel_Click(object sender, RoutedEventArgs e)
+        {
+            CloseChannel();
+        }
+
+        private void CloseChannel()
+        {
+            ChannelOverlay.Visibility = Visibility.Collapsed;
+            _isChannelOpen = false;
+            UpdateBackButtonVisibility();
+        }
+
+        private async void ChannelSubscribe_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentAuthorId)) return;
+            await _data.ToggleSubscription(_currentAuthorId, _currentAuthor, _currentThumbnailUrl);
+            ChannelHeartIcon.Glyph = _data.IsSubscribed(_currentAuthorId) ? "\uEB52" : "\uEB51";
+        }
+
+        private async void ChannelVideosList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var video = e.ClickedItem as VideoResult;
+            if (video == null) return;
+            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId);
+        }
+
+        // ==================== VIDEO PLAYER ====================
+
+        private async System.Threading.Tasks.Task PlayVideo(string videoId, string title, string author, string thumbnailUrl, string authorId = "")
         {
             _currentVideoId = videoId;
+            _currentAuthorId = authorId;
+            _currentAuthor = author;
+            _currentThumbnailUrl = thumbnailUrl;
 
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
             UpdateBackButtonVisibility();
 
-            PlayerTitle.Text = title;
+            PlayerTitle.Visibility = Visibility.Collapsed;
             PlayerVideoTitle.Text = title;
             PlayerVideoAuthor.Text = author;
             PlayerLoadingRing.IsActive = true;
+
+            // Update heart icon
+            PlayerHeartIcon.Glyph = (!string.IsNullOrEmpty(authorId) && _data.IsSubscribed(authorId)) ? "\uEB52" : "\uEB51";
+
+            // Record history
+            await _data.AddHistoryItem(videoId, title, thumbnailUrl, authorId, author);
 
             try
             {
@@ -135,17 +455,14 @@ namespace subwayTube
                 _lastPlayerResponse = playerResponse;
                 _cachedHlsUrl = playerResponse.HlsManifestUrl;
 
-                // Try DASH manifest first (combines video + audio adaptively)
                 var dashMpd = DashManifestGenerator.Generate(playerResponse.Formats);
 
-                // Get available video qualities for the selector
                 var avcVideoFormats = playerResponse.Formats
                     .Where(f => f.IsVideo && !f.IsMuxed && f.Url != null && f.Codecs != null && f.Codecs.StartsWith("avc1"))
                     .OrderByDescending(f => f.Height)
                     .ToList();
                 _currentFormats = avcVideoFormats;
 
-                // Populate quality selector
                 _ignoreQualityChange = true;
                 QualitySelector.Items.Clear();
 
@@ -160,7 +477,6 @@ namespace subwayTube
                 QualitySelector.SelectedIndex = 0;
                 _ignoreQualityChange = false;
 
-                // Play: DASH > HLS > Muxed (ANDROID) > direct video-only (with fallback)
                 string playError = null;
 
                 if (dashMpd != null)
@@ -194,8 +510,6 @@ namespace subwayTube
                     }
                 }
 
-                // Muxed fallback: fetch 360p muxed format from ANDROID client
-                // (IOS client only returns adaptive formats which W10M can't play directly)
                 if (playError != null || (dashMpd == null && string.IsNullOrEmpty(playerResponse.HlsManifestUrl)))
                 {
                     try
@@ -205,7 +519,6 @@ namespace subwayTube
                         if (muxedFmt != null)
                         {
                             _cachedMuxedFormat = muxedFmt;
-                            // Add to quality selector if not already there
                             if (!QualitySelector.Items.Contains("360p (muxed)"))
                             {
                                 _ignoreQualityChange = true;
@@ -256,28 +569,21 @@ namespace subwayTube
             }
         }
 
-        /// <summary>
-        /// Plays a locally-generated DASH MPD manifest via AdaptiveMediaSource.
-        /// The IosUserAgentFilter ensures all segment Range requests get the correct UA.
-        /// </summary>
         private async System.Threading.Tasks.Task PlayDash(string dashMpd)
         {
             _lastPlayedUrl = "DASH manifest (local)";
 
-            // Dispose previous stream
             if (_currentStream != null)
             {
                 _currentStream.Dispose();
                 _currentStream = null;
             }
 
-            // Write MPD XML to an in-memory stream
             var bytes = System.Text.Encoding.UTF8.GetBytes(dashMpd);
             _currentStream = new InMemoryRandomAccessStream();
             await _currentStream.WriteAsync(bytes.AsBuffer());
             _currentStream.Seek(0);
 
-            // Create adaptive source from the DASH manifest stream, using our filter-based HttpClient
             var dashSource = await AdaptiveMediaSource.CreateFromStreamAsync(
                 _currentStream,
                 new System.Uri("https://www.youtube.com/dash"),
@@ -287,9 +593,7 @@ namespace subwayTube
             if (dashSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
                 var adaptiveSource = dashSource.MediaSource;
-                // Start at highest available bitrate (default is lowest)
                 adaptiveSource.InitialBitrate = adaptiveSource.AvailableBitrates.Max();
-                // Intercept downloads to add Range header (YouTube 403s without it)
                 adaptiveSource.DownloadRequested += OnDashDownloadRequested;
                 var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
                 VideoPlayer.Source = mediaSource;
@@ -302,15 +606,12 @@ namespace subwayTube
 
         private async void OnDashDownloadRequested(AdaptiveMediaSource sender, AdaptiveMediaSourceDownloadRequestedEventArgs args)
         {
-            // YouTube returns 403 for requests without a bounded Range header.
-            // We intercept every request and fetch with a proper Range header ourselves.
             var deferral = args.GetDeferral();
             try
             {
                 var reqMsg = new Windows.Web.Http.HttpRequestMessage(
                     Windows.Web.Http.HttpMethod.Get, args.ResourceUri);
 
-                // If the framework provides byte range info, use it; otherwise request first 10MB
                 if (args.ResourceByteRangeOffset.HasValue && args.ResourceByteRangeLength.HasValue)
                 {
                     var start = args.ResourceByteRangeOffset.Value;
@@ -320,12 +621,10 @@ namespace subwayTube
                 else if (args.ResourceByteRangeOffset.HasValue)
                 {
                     var start = args.ResourceByteRangeOffset.Value;
-                    // Bounded range - request a large chunk 
                     reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=" + start + "-" + (start + 10485759));
                 }
                 else
                 {
-                    // No range info at all - request from start with bounded range
                     reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=0-10485759");
                 }
 
@@ -333,32 +632,23 @@ namespace subwayTube
                 var buffer = await response.Content.ReadAsBufferAsync();
                 args.Result.Buffer = buffer;
             }
-            catch
-            {
-                // Let the player handle the error naturally
-            }
+            catch { }
             finally
             {
                 deferral.Complete();
             }
         }
 
-        /// <summary>
-        /// Downloads the stream via HttpClient with IOS User-Agent and bounded Range header,
-        /// buffers it, then plays from the in-memory stream.
-        /// </summary>
         private async System.Threading.Tasks.Task PlayDirectUrl(string url, string mimeType = "video/mp4", long contentLength = 0)
         {
             _lastPlayedUrl = url;
 
-            // Dispose previous stream
             if (_currentStream != null)
             {
                 _currentStream.Dispose();
                 _currentStream = null;
             }
 
-            // YouTube requires bounded Range header or returns 403
             var reqMsg = new Windows.Web.Http.HttpRequestMessage(
                 Windows.Web.Http.HttpMethod.Get, new Uri(url));
             long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
@@ -370,7 +660,6 @@ namespace subwayTube
             await _currentStream.WriteAsync(buffer);
             _currentStream.Seek(0);
 
-            // Extract base mime type (strip codecs parameter)
             var baseMime = mimeType;
             var semiIdx = baseMime.IndexOf(';');
             if (semiIdx >= 0) baseMime = baseMime.Substring(0, semiIdx).Trim();
@@ -378,23 +667,16 @@ namespace subwayTube
             VideoPlayer.Source = MediaSource.CreateFromStream(_currentStream, baseMime);
         }
 
-        /// <summary>
-        /// Downloads a muxed (video+audio) stream and plays it.
-        /// Muxed URLs from ANDROID client work without Range headers.
-        /// </summary>
         private async System.Threading.Tasks.Task PlayMuxedUrl(string url, long contentLength = 0)
         {
             _lastPlayedUrl = url;
 
-            // Dispose previous stream
             if (_currentStream != null)
             {
                 _currentStream.Dispose();
                 _currentStream = null;
             }
 
-            // Muxed URLs work with plain GET (no Range header required)
-            // But we use a bounded Range anyway for consistency
             var reqMsg = new Windows.Web.Http.HttpRequestMessage(
                 Windows.Web.Http.HttpMethod.Get, new Uri(url));
             long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
@@ -431,13 +713,11 @@ namespace subwayTube
                         info += "  - itag " + f.Itag + " " + f.QualityLabel + " " + f.MimeType
                             + (f.IsMuxed ? " [muxed]" : "") + " url=" + (f.Url != null ? "yes" : "no") + "\n";
                     }
-                    // Show generated DASH manifest
                     var dashMpd = DashManifestGenerator.Generate(_lastPlayerResponse.Formats);
                     if (dashMpd != null)
                     {
                         info += "\n=== DASH MANIFEST ===\n" + dashMpd + "\n";
                     }
-
                     info += "\n=== RAW RESPONSE ===\n";
                     info += _lastPlayerResponse.RawJson ?? "";
                 }
@@ -476,7 +756,6 @@ namespace subwayTube
                 }
                 else if (_currentFormats != null)
                 {
-                    // Calculate offset for DASH/HLS/muxed entries
                     int offset = 0;
                     if (QualitySelector.Items.Contains("Auto (DASH)")) offset++;
                     if (QualitySelector.Items.Contains("Auto (HLS)")) offset++;
@@ -497,6 +776,27 @@ namespace subwayTube
             }
         }
 
+        // ==================== PLAYER BUTTONS ====================
+
+        private async void PlayerSubscribe_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentAuthorId)) return;
+            await _data.ToggleSubscription(_currentAuthorId, _currentAuthor, _currentThumbnailUrl);
+            PlayerHeartIcon.Glyph = _data.IsSubscribed(_currentAuthorId) ? "\uEB52" : "\uEB51";
+        }
+
+        private void PlayerShare_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentVideoId)) return;
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText("https://youtu.be/" + _currentVideoId);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            // Brief visual feedback
+            PlayerVideoAuthor.Text = "Link copied!";
+        }
+
+        // ==================== DEBUG ====================
+
         private void ShowDebug(string videoId, PlayerResponse result)
         {
             var info = "=== PLAYER DEBUG ===\n\n";
@@ -507,7 +807,6 @@ namespace subwayTube
             info += "Formats found: " + result.Formats.Count + "\n\n";
             info += "=== REQUEST BODY ===\n" + (result.RequestBody ?? "") + "\n\n";
 
-            // Show generated DASH manifest if available
             var dashMpd = DashManifestGenerator.Generate(result.Formats);
             if (dashMpd != null)
             {
@@ -546,6 +845,8 @@ namespace subwayTube
             }
         }
 
+        // ==================== CLOSE / BACK ====================
+
         private void ClosePlayerButton_Click(object sender, RoutedEventArgs e)
         {
             ClosePlayer();
@@ -568,9 +869,24 @@ namespace subwayTube
 
         private void OnBackRequested(object sender, BackRequestedEventArgs e)
         {
-            if (_isPlayerOpen)
+            if (DebugOverlay.Visibility == Visibility.Visible)
+            {
+                DebugOverlay.Visibility = Visibility.Collapsed;
+                e.Handled = true;
+            }
+            else if (_isPlayerOpen)
             {
                 ClosePlayer();
+                e.Handled = true;
+            }
+            else if (_isChannelOpen)
+            {
+                CloseChannel();
+                e.Handled = true;
+            }
+            else if (_activeTab != 0)
+            {
+                ShowFeed();
                 e.Handled = true;
             }
         }
@@ -578,7 +894,7 @@ namespace subwayTube
         private void UpdateBackButtonVisibility()
         {
             SystemNavigationManager.GetForCurrentView().AppViewBackButtonVisibility =
-                _isPlayerOpen
+                (_isPlayerOpen || _isChannelOpen || _activeTab != 0)
                     ? AppViewBackButtonVisibility.Visible
                     : AppViewBackButtonVisibility.Collapsed;
         }

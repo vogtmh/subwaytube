@@ -14,6 +14,7 @@ namespace subwayTube.Services
         // InnerTube API endpoints
         private const string SearchUrl = "https://www.youtube.com/youtubei/v1/search?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
         private const string PlayerUrl = "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
+        private const string BrowseUrl = "https://www.youtube.com/youtubei/v1/browse?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8";
 
         // Client version strings — from youtubei.js Constants.ts
         private const string WebClientVersion = "2.20260206.01.00";
@@ -171,6 +172,135 @@ namespace subwayTube.Services
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Get recent videos from a channel using the InnerTube browse API (WEB client).
+        /// </summary>
+        public async Task<List<VideoResult>> GetChannelVideosAsync(string channelId)
+        {
+            var body = new JsonObject
+            {
+                ["context"] = new JsonObject
+                {
+                    ["client"] = new JsonObject
+                    {
+                        ["clientName"] = JsonValue.CreateStringValue("WEB"),
+                        ["clientVersion"] = JsonValue.CreateStringValue(WebClientVersion),
+                        ["hl"] = JsonValue.CreateStringValue("en"),
+                        ["gl"] = JsonValue.CreateStringValue("US")
+                    }
+                },
+                ["browseId"] = JsonValue.CreateStringValue(channelId),
+                ["params"] = JsonValue.CreateStringValue("EgZ2aWRlb3PyBgQKAjoA")
+            };
+
+            var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync(BrowseUrl, content);
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+            return ParseChannelVideos(json, channelId);
+        }
+
+        private List<VideoResult> ParseChannelVideos(string json, string channelId)
+        {
+            var results = new List<VideoResult>();
+
+            JsonObject root;
+            if (!JsonObject.TryParse(json, out root))
+                return results;
+
+            try
+            {
+                // Extract channel name from header/metadata
+                string channelName = "";
+                if (root.ContainsKey("metadata") && root.GetNamedObject("metadata").ContainsKey("channelMetadataRenderer"))
+                {
+                    channelName = root.GetNamedObject("metadata")
+                        .GetNamedObject("channelMetadataRenderer")
+                        .GetNamedString("title");
+                }
+
+                // Navigate: contents -> twoColumnBrowseResultsRenderer -> tabs[] ->
+                //           tabRenderer -> content -> richGridRenderer -> contents[] ->
+                //           richItemRenderer -> content -> videoRenderer
+                var tabs = root.GetNamedObject("contents")
+                    .GetNamedObject("twoColumnBrowseResultsRenderer")
+                    .GetNamedArray("tabs");
+
+                for (uint t = 0; t < tabs.Count; t++)
+                {
+                    var tab = tabs.GetObjectAt(t);
+                    if (!tab.ContainsKey("tabRenderer")) continue;
+                    var tabRenderer = tab.GetNamedObject("tabRenderer");
+                    if (!tabRenderer.ContainsKey("content")) continue;
+                    var tabContent = tabRenderer.GetNamedObject("content");
+
+                    JsonArray gridContents = null;
+                    if (tabContent.ContainsKey("richGridRenderer"))
+                    {
+                        gridContents = tabContent.GetNamedObject("richGridRenderer").GetNamedArray("contents");
+                    }
+                    else if (tabContent.ContainsKey("sectionListRenderer"))
+                    {
+                        // Fallback structure
+                        var sections = tabContent.GetNamedObject("sectionListRenderer").GetNamedArray("contents");
+                        for (uint s = 0; s < sections.Count; s++)
+                        {
+                            var section = sections.GetObjectAt(s);
+                            if (!section.ContainsKey("itemSectionRenderer")) continue;
+                            var items = section.GetNamedObject("itemSectionRenderer").GetNamedArray("contents");
+                            for (uint i = 0; i < items.Count; i++)
+                            {
+                                var item = items.GetObjectAt(i);
+                                if (item.ContainsKey("gridRenderer"))
+                                {
+                                    gridContents = item.GetNamedObject("gridRenderer").GetNamedArray("items");
+                                    break;
+                                }
+                            }
+                            if (gridContents != null) break;
+                        }
+                    }
+
+                    if (gridContents == null) continue;
+
+                    for (uint i = 0; i < gridContents.Count && results.Count < 30; i++)
+                    {
+                        var gridItem = gridContents.GetObjectAt(i);
+                        JsonObject videoRenderer = null;
+
+                        if (gridItem.ContainsKey("richItemRenderer"))
+                        {
+                            var richContent = gridItem.GetNamedObject("richItemRenderer").GetNamedObject("content");
+                            if (richContent.ContainsKey("videoRenderer"))
+                                videoRenderer = richContent.GetNamedObject("videoRenderer");
+                        }
+                        else if (gridItem.ContainsKey("gridVideoRenderer"))
+                        {
+                            videoRenderer = gridItem.GetNamedObject("gridVideoRenderer");
+                        }
+
+                        if (videoRenderer == null) continue;
+
+                        var result = ParseVideoRenderer(videoRenderer);
+                        if (result != null)
+                        {
+                            if (string.IsNullOrEmpty(result.Author))
+                                result.Author = channelName;
+                            if (string.IsNullOrEmpty(result.AuthorId))
+                                result.AuthorId = channelId;
+                            results.Add(result);
+                        }
+                    }
+
+                    if (results.Count > 0) break;
+                }
+            }
+            catch { }
+
+            return results;
         }
 
         private void ParsePlayerResponse(string json, PlayerResponse result)
@@ -348,10 +478,40 @@ namespace subwayTube.Services
                 var title = GetTextFromRuns(video.GetNamedObject("title"));
 
                 string author = "";
+                string authorId = "";
                 if (video.ContainsKey("ownerText"))
+                {
                     author = GetTextFromRuns(video.GetNamedObject("ownerText"));
+                    // Extract authorId from navigation endpoint
+                    try
+                    {
+                        var runs = video.GetNamedObject("ownerText").GetNamedArray("runs");
+                        if (runs.Count > 0)
+                        {
+                            var endpoint = runs.GetObjectAt(0).GetNamedObject("navigationEndpoint");
+                            authorId = endpoint.GetNamedObject("browseEndpoint").GetNamedString("browseId");
+                        }
+                    }
+                    catch { }
+                }
                 else if (video.ContainsKey("longBylineText"))
+                {
                     author = GetTextFromRuns(video.GetNamedObject("longBylineText"));
+                    try
+                    {
+                        var runs = video.GetNamedObject("longBylineText").GetNamedArray("runs");
+                        if (runs.Count > 0)
+                        {
+                            var endpoint = runs.GetObjectAt(0).GetNamedObject("navigationEndpoint");
+                            authorId = endpoint.GetNamedObject("browseEndpoint").GetNamedString("browseId");
+                        }
+                    }
+                    catch { }
+                }
+
+                string publishedText = "";
+                if (video.ContainsKey("publishedTimeText"))
+                    publishedText = GetSimpleText(video.GetNamedObject("publishedTimeText"));
 
                 string duration = "";
                 if (video.ContainsKey("lengthText"))
@@ -371,9 +531,11 @@ namespace subwayTube.Services
                     VideoId = videoId,
                     Title = title,
                     Author = author,
+                    AuthorId = authorId,
                     Duration = duration,
                     ThumbnailUrl = thumbnailUrl,
-                    ViewCount = viewCount
+                    ViewCount = viewCount,
+                    PublishedText = publishedText
                 };
             }
             catch (Exception)
