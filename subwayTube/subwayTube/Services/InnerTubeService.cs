@@ -200,7 +200,7 @@ namespace subwayTube.Services
         {
             JsonObject root;
             if (!JsonObject.TryParse(json, out root))
-                return null;
+                throw new Exception("Invalid JSON response from player API");
 
             // Check playability
             if (root.ContainsKey("playabilityStatus"))
@@ -208,26 +208,45 @@ namespace subwayTube.Services
                 var status = root.GetNamedObject("playabilityStatus");
                 var statusStr = status.GetNamedString("status");
                 if (statusStr != "OK")
-                    return null;
+                {
+                    string reason = "unknown";
+                    if (status.ContainsKey("reason"))
+                        reason = status.GetNamedString("reason");
+                    else if (status.ContainsKey("messages"))
+                        reason = status.GetNamedArray("messages").GetStringAt(0);
+                    throw new Exception("Playback blocked: " + statusStr + " - " + reason);
+                }
             }
 
             if (!root.ContainsKey("streamingData"))
-                return null;
+                throw new Exception("No streaming data in response");
 
             var streamingData = root.GetNamedObject("streamingData");
 
-            // Try muxed formats first (contains both audio+video) — ideal for simple playback
+            // Option 1: Try HLS manifest (adaptive streaming, works natively in MediaPlayerElement)
+            if (streamingData.ContainsKey("hlsManifestUrl"))
+            {
+                return streamingData.GetNamedString("hlsManifestUrl");
+            }
+
+            // Option 2: Try muxed formats (contains both audio+video)
             if (streamingData.ContainsKey("formats"))
             {
                 var formats = streamingData.GetNamedArray("formats");
                 string fallbackUrl = null;
+                int formatCount = 0;
+                int cipheredCount = 0;
 
                 for (uint i = 0; i < formats.Count; i++)
                 {
                     var format = formats.GetObjectAt(i);
+                    formatCount++;
 
                     if (!format.ContainsKey("url"))
+                    {
+                        cipheredCount++;
                         continue;
+                    }
 
                     string url = format.GetNamedString("url");
 
@@ -242,21 +261,22 @@ namespace subwayTube.Services
                     if (format.ContainsKey("quality"))
                     {
                         string quality = format.GetNamedString("quality");
-                        if (quality == "medium") // "medium" = 360p in YouTube's quality enum
+                        if (quality == "medium")
                             return url;
                     }
 
-                    // Keep track of any available URL as fallback
                     if (fallbackUrl == null)
                         fallbackUrl = url;
                 }
 
-                // If no 360p found, return whatever is available
                 if (fallbackUrl != null)
                     return fallbackUrl;
+
+                if (cipheredCount > 0)
+                    throw new Exception(formatCount + " formats found but all " + cipheredCount + " require signature deciphering");
             }
 
-            return null;
+            throw new Exception("No playable formats found in streaming data");
         }
 
         // Helper: extract text from a "runs" array
