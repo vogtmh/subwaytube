@@ -48,6 +48,7 @@ namespace subwayTube.Models
         public string RequestBody { get; set; }
         public int StatusCode { get; set; }
         public string Error { get; set; }
+        public string HlsManifestUrl { get; set; }
         public List<StreamFormat> Formats { get; set; } = new List<StreamFormat>();
     }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Windows.Media.Core;
+using Windows.Media.Streaming.Adaptive;
 using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -16,7 +17,6 @@ namespace subwayTube
     public sealed partial class MainPage : Page
     {
         private readonly InnerTubeService _innerTube = new InnerTubeService();
-        private readonly PlayerService _playerService = new PlayerService();
         private readonly ObservableCollection<VideoResult> _results = new ObservableCollection<VideoResult>();
         private bool _isPlayerOpen;
         private List<StreamFormat> _currentFormats;
@@ -27,7 +27,6 @@ namespace subwayTube
         {
             this.InitializeComponent();
             ResultsList.ItemsSource = _results;
-            _playerService.SetWebView(JsEngine);
 
             // Handle hardware back button (Windows 10 Mobile)
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
@@ -52,7 +51,6 @@ namespace subwayTube
             if (string.IsNullOrEmpty(query))
                 return;
 
-            // Handle direct YouTube URLs
             string directVideoId = ExtractVideoId(query);
             if (directVideoId != null)
             {
@@ -68,9 +66,7 @@ namespace subwayTube
             {
                 var results = await _innerTube.SearchAsync(query);
                 foreach (var r in results)
-                {
                     _results.Add(r);
-                }
 
                 if (results.Count == 0)
                 {
@@ -93,7 +89,6 @@ namespace subwayTube
         {
             var video = e.ClickedItem as VideoResult;
             if (video == null) return;
-
             await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl);
         }
 
@@ -101,7 +96,6 @@ namespace subwayTube
         {
             _currentVideoId = videoId;
 
-            // Show player overlay
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
             UpdateBackButtonVisibility();
@@ -113,11 +107,6 @@ namespace subwayTube
 
             try
             {
-                // Step 1: Prepare the JS decipher engine
-                PlayerVideoAuthor.Text = "Preparing decipher engine...";
-                await _playerService.PrepareDecipherAsync(videoId);
-
-                // Step 2: Get player response with all formats
                 PlayerVideoAuthor.Text = "Fetching video info...";
                 var playerResponse = await _innerTube.GetPlayerResponseAsync(videoId);
 
@@ -128,39 +117,49 @@ namespace subwayTube
                     return;
                 }
 
-                // Step 3: Filter to video formats, muxed preferred, sorted by height
+                // Collect video formats for quality selector
                 var videoFormats = playerResponse.Formats
-                    .Where(f => f.IsVideo)
-                    .OrderByDescending(f => f.IsMuxed)
-                    .ThenByDescending(f => f.Height)
+                    .Where(f => f.IsVideo && f.Url != null)
+                    .OrderByDescending(f => f.Height)
                     .ToList();
-
-                if (videoFormats.Count == 0)
-                {
-                    PlayerLoadingRing.IsActive = false;
-                    playerResponse.Error = "No video formats available";
-                    ShowDebug(videoId, playerResponse);
-                    return;
-                }
 
                 _currentFormats = videoFormats;
 
-                // Step 4: Populate quality selector
+                // Populate quality selector
                 _ignoreQualityChange = true;
                 QualitySelector.Items.Clear();
-                foreach (var fmt in videoFormats)
+
+                // Add HLS option first (adaptive, auto quality with audio)
+                if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
                 {
-                    QualitySelector.Items.Add(fmt.DisplayLabel);
+                    QualitySelector.Items.Add("Auto (HLS)");
                 }
 
-                // Select default quality
-                int defaultIdx = FindDefaultQualityIndex(videoFormats);
-                QualitySelector.SelectedIndex = defaultIdx;
+                foreach (var fmt in videoFormats)
+                    QualitySelector.Items.Add(fmt.DisplayLabel);
+
+                // Default to HLS if available, otherwise first format
+                QualitySelector.SelectedIndex = 0;
                 _ignoreQualityChange = false;
 
-                // Step 5: Decipher and play
-                PlayerVideoAuthor.Text = "Deciphering stream URL...";
-                await PlayFormat(videoFormats[defaultIdx]);
+                // Play HLS if available, otherwise fall back to direct URL
+                if (!string.IsNullOrEmpty(playerResponse.HlsManifestUrl))
+                {
+                    PlayerVideoAuthor.Text = "Loading HLS stream...";
+                    await PlayHls(playerResponse.HlsManifestUrl);
+                }
+                else if (videoFormats.Count > 0)
+                {
+                    PlayerVideoAuthor.Text = "Loading stream...";
+                    PlayDirectUrl(videoFormats[0].Url);
+                }
+                else
+                {
+                    playerResponse.Error = "No playable formats found";
+                    ShowDebug(videoId, playerResponse);
+                    PlayerLoadingRing.IsActive = false;
+                    return;
+                }
 
                 PlayerVideoAuthor.Text = author;
                 PlayerLoadingRing.IsActive = false;
@@ -172,55 +171,54 @@ namespace subwayTube
             }
         }
 
-        private async System.Threading.Tasks.Task PlayFormat(StreamFormat format)
+        private async System.Threading.Tasks.Task PlayHls(string hlsUrl)
         {
-            string url;
-
-            if (format.SignatureCipher != null)
+            var hlsSource = await AdaptiveMediaSource.CreateFromUriAsync(new Uri(hlsUrl));
+            if (hlsSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
-                url = await _playerService.DecipherUrlAsync(format.SignatureCipher);
-            }
-            else if (format.Url != null)
-            {
-                url = await _playerService.DecipherDirectUrlAsync(format.Url);
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(hlsSource.MediaSource);
+                VideoPlayer.Source = mediaSource;
             }
             else
             {
-                throw new Exception("Format has no URL or signatureCipher");
+                throw new Exception("HLS failed: " + hlsSource.Status);
             }
-
-            VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
         }
 
-        private int FindDefaultQualityIndex(List<StreamFormat> formats)
+        private void PlayDirectUrl(string url)
         {
-            // Prefer muxed 720p
-            for (int i = 0; i < formats.Count; i++)
-                if (formats[i].IsMuxed && formats[i].Height == 720) return i;
-            // Then muxed 480p
-            for (int i = 0; i < formats.Count; i++)
-                if (formats[i].IsMuxed && formats[i].Height == 480) return i;
-            // Then muxed 360p
-            for (int i = 0; i < formats.Count; i++)
-                if (formats[i].IsMuxed && formats[i].Height == 360) return i;
-            // Then any muxed
-            for (int i = 0; i < formats.Count; i++)
-                if (formats[i].IsMuxed) return i;
-            // Then 720p adaptive
-            for (int i = 0; i < formats.Count; i++)
-                if (formats[i].Height == 720) return i;
-            return 0;
+            VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(url));
         }
 
         private async void QualitySelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_ignoreQualityChange || _currentFormats == null || QualitySelector.SelectedIndex < 0)
+            if (_ignoreQualityChange || QualitySelector.SelectedIndex < 0)
                 return;
 
-            var format = _currentFormats[QualitySelector.SelectedIndex];
+            var selectedText = QualitySelector.SelectedItem as string;
+            if (selectedText == null)
+                return;
+
             try
             {
-                await PlayFormat(format);
+                if (selectedText == "Auto (HLS)")
+                {
+                    // Re-fetch HLS URL (or cache it)
+                    var response = await _innerTube.GetPlayerResponseAsync(_currentVideoId);
+                    if (!string.IsNullOrEmpty(response.HlsManifestUrl))
+                        await PlayHls(response.HlsManifestUrl);
+                }
+                else if (_currentFormats != null)
+                {
+                    // Find the format matching the selected label
+                    // Account for the HLS entry offset
+                    int offset = QualitySelector.Items.Contains("Auto (HLS)") ? 1 : 0;
+                    int formatIdx = QualitySelector.SelectedIndex - offset;
+                    if (formatIdx >= 0 && formatIdx < _currentFormats.Count)
+                    {
+                        PlayDirectUrl(_currentFormats[formatIdx].Url);
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -234,6 +232,7 @@ namespace subwayTube
             info += "VideoId: " + videoId + "\n";
             info += "HTTP Status: " + result.StatusCode + "\n";
             info += "Error: " + (result.Error ?? "none") + "\n";
+            info += "HLS URL: " + (result.HlsManifestUrl ?? "null") + "\n";
             info += "Formats found: " + result.Formats.Count + "\n\n";
             info += "=== REQUEST BODY ===\n" + (result.RequestBody ?? "") + "\n\n";
             info += "=== RAW RESPONSE (first 5000 chars) ===\n";

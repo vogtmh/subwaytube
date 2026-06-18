@@ -151,9 +151,6 @@
             </StackPanel>
         </Grid>
 
-        <!-- Hidden WebView used as JS engine for signature deciphering -->
-        <WebView x:Name="JsEngine" Visibility="Collapsed" Width="0" Height="0" />
-
         <!-- Debug overlay (fullscreen, scrollable) -->
         <Grid x:Name="DebugOverlay"
               Grid.RowSpan="3"

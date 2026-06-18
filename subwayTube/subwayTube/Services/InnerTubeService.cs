@@ -56,8 +56,8 @@ namespace subwayTube.Services
         }
 
         /// <summary>
-        /// Get available stream formats for a video using the InnerTube API (WEB client).
-        /// Returns raw format data; URLs may need deciphering via PlayerService.
+        /// Get available streams for a video using the InnerTube API (IOS client).
+        /// IOS client returns direct URLs (no cipher) + HLS manifest.
         /// </summary>
         public async Task<PlayerResponse> GetPlayerResponseAsync(string videoId)
         {
@@ -67,8 +67,9 @@ namespace subwayTube.Services
                 {
                     ["client"] = new JsonObject
                     {
-                        ["clientName"] = JsonValue.CreateStringValue("WEB"),
-                        ["clientVersion"] = JsonValue.CreateStringValue(WebClientVersion),
+                        ["clientName"] = JsonValue.CreateStringValue("IOS"),
+                        ["clientVersion"] = JsonValue.CreateStringValue(IosClientVersion),
+                        ["deviceModel"] = JsonValue.CreateStringValue(IosDeviceModel),
                         ["hl"] = JsonValue.CreateStringValue("en"),
                         ["gl"] = JsonValue.CreateStringValue("US")
                     }
@@ -79,7 +80,12 @@ namespace subwayTube.Services
             };
 
             var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
-            var response = await _httpClient.PostAsync(PlayerUrl, content);
+
+            var request = new HttpRequestMessage(HttpMethod.Post, PlayerUrl);
+            request.Content = content;
+            request.Headers.TryAddWithoutValidation("User-Agent", IosUserAgent);
+
+            var response = await _httpClient.SendAsync(request);
             var json = await response.Content.ReadAsStringAsync();
 
             var result = new PlayerResponse();
@@ -131,6 +137,12 @@ namespace subwayTube.Services
                 throw new Exception("No streaming data in response");
 
             var streamingData = root.GetNamedObject("streamingData");
+
+            // Extract HLS manifest URL (for native adaptive playback)
+            if (streamingData.ContainsKey("hlsManifestUrl"))
+            {
+                result.HlsManifestUrl = streamingData.GetNamedString("hlsManifestUrl");
+            }
 
             // Parse muxed formats (audio+video)
             if (streamingData.ContainsKey("formats"))
@@ -186,16 +198,6 @@ namespace subwayTube.Services
 
                 output.Add(fmt);
             }
-        }
-
-        // Keep old method for backward compatibility during transition
-        public class PlayerResult
-        {
-            public string StreamUrl { get; set; }
-            public string RawJson { get; set; }
-            public string RequestBody { get; set; }
-            public string Error { get; set; }
-            public int StatusCode { get; set; }
         }
 
         private List<VideoResult> ParseSearchResults(string json)
