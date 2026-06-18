@@ -104,16 +104,16 @@ namespace subwayTube
 
             try
             {
-                var streamUrl = await _innerTube.GetStreamUrlAsync(videoId);
+                var result = await _innerTube.GetStreamUrlAsync(videoId);
 
-                if (string.IsNullOrEmpty(streamUrl))
+                if (result.Error != null || string.IsNullOrEmpty(result.StreamUrl))
                 {
-                    PlayerVideoAuthor.Text = "Could not get stream URL. Video may be restricted.";
                     PlayerLoadingRing.IsActive = false;
+                    ShowDebug(videoId, result);
                     return;
                 }
 
-                VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(streamUrl));
+                VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(result.StreamUrl));
                 PlayerLoadingRing.IsActive = false;
             }
             catch (Exception ex)
@@ -121,6 +121,27 @@ namespace subwayTube
                 PlayerVideoAuthor.Text = "Playback error: " + ex.Message;
                 PlayerLoadingRing.IsActive = false;
             }
+        }
+
+        private void ShowDebug(string videoId, Services.InnerTubeService.PlayerResult result)
+        {
+            var info = "=== PLAYER DEBUG ===\n\n";
+            info += "VideoId: " + videoId + "\n";
+            info += "HTTP Status: " + result.StatusCode + "\n";
+            info += "Error: " + (result.Error ?? "none") + "\n";
+            info += "StreamUrl: " + (result.StreamUrl ?? "null") + "\n\n";
+            info += "=== REQUEST BODY ===\n" + (result.RequestBody ?? "") + "\n\n";
+            info += "=== RAW RESPONSE (first 5000 chars) ===\n";
+            var raw = result.RawJson ?? "";
+            info += raw.Substring(0, Math.Min(5000, raw.Length));
+
+            DebugText.Text = info;
+            DebugOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void CloseDebug_Click(object sender, RoutedEventArgs e)
+        {
+            DebugOverlay.Visibility = Visibility.Collapsed;
         }
 
         private void ClosePlayerButton_Click(object sender, RoutedEventArgs e)
@@ -132,6 +153,7 @@ namespace subwayTube
         {
             VideoPlayer.Source = null;
             PlayerOverlay.Visibility = Visibility.Collapsed;
+            DebugOverlay.Visibility = Visibility.Collapsed;
             _isPlayerOpen = false;
             UpdateBackButtonVisibility();
         }
