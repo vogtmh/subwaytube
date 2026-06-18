@@ -31,7 +31,7 @@ namespace subwayTube.Services
             var sb = new StringBuilder();
             sb.AppendLine("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
             sb.Append("<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" ");
-            sb.Append("profiles=\"urn:mpeg:dash:profile:isoff-main:2011\" ");
+            sb.Append("profiles=\"urn:mpeg:dash:profile:isoff-on-demand:2011\" ");
             sb.Append("type=\"static\" ");
             sb.Append("mediaPresentationDuration=\"PT" + durationSec.ToString("F3", CultureInfo.InvariantCulture) + "S\" ");
             sb.AppendLine("minBufferTime=\"PT2S\">");

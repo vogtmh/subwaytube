@@ -331,13 +331,9 @@ namespace subwayTube
             }
         }
 
-        private static readonly System.Net.Http.HttpClient _downloadClient = new System.Net.Http.HttpClient();
-
         /// <summary>
-        /// Downloads the stream via System.Net.Http with Range header, buffers it,
-        /// then plays from the in-memory stream.
-        /// Uses System.Net.Http instead of Windows.Web.Http to ensure Range headers
-        /// are sent correctly on Windows 10 Mobile.
+        /// Downloads the stream via HttpClient with IOS User-Agent and bounded Range header,
+        /// buffers it, then plays from the in-memory stream.
         /// </summary>
         private async System.Threading.Tasks.Task PlayDirectUrl(string url, string mimeType = "video/mp4", long contentLength = 0)
         {
@@ -351,20 +347,15 @@ namespace subwayTube
             }
 
             // YouTube requires bounded Range header or returns 403
-            var reqMsg = new System.Net.Http.HttpRequestMessage(
-                System.Net.Http.HttpMethod.Get, url);
+            var reqMsg = new Windows.Web.Http.HttpRequestMessage(
+                Windows.Web.Http.HttpMethod.Get, new Uri(url));
             long rangeEnd = contentLength > 0 ? contentLength - 1 : 500000000;
-            reqMsg.Headers.TryAddWithoutValidation("Range", "bytes=0-" + rangeEnd);
+            reqMsg.Headers.TryAppendWithoutValidation("Range", "bytes=0-" + rangeEnd);
 
-            var response = await _downloadClient.SendAsync(reqMsg);
-            if ((int)response.StatusCode != 200 && (int)response.StatusCode != 206)
-            {
-                throw new Exception("HTTP " + (int)response.StatusCode + " " + response.StatusCode);
-            }
-
-            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var response = await _streamClient.SendRequestAsync(reqMsg);
+            var buffer = await response.Content.ReadAsBufferAsync();
             _currentStream = new InMemoryRandomAccessStream();
-            await _currentStream.WriteAsync(bytes.AsBuffer());
+            await _currentStream.WriteAsync(buffer);
             _currentStream.Seek(0);
 
             // Extract base mime type (strip codecs parameter)
