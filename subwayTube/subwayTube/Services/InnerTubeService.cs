@@ -359,7 +359,6 @@ namespace subwayTube.Services
 
             return target360 ?? targetLow ?? fallbackVideo;
         }
-        }
 
         // Helper: extract text from a "runs" array
         private string GetTextFromRuns(JsonObject textObj)
