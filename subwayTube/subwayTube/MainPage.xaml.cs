@@ -1,6 +1,5 @@
 using System;
 using System.Collections.ObjectModel;
-using Windows.Media.Core;
 using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -102,25 +101,17 @@ namespace subwayTube
             PlayerVideoAuthor.Text = author;
             PlayerLoadingRing.IsActive = true;
 
-            try
-            {
-                var result = await _innerTube.GetStreamUrlAsync(videoId);
+            // Use YouTube's embed player via WebView — avoids needing poToken + signature deciphering
+            var embedHtml = "<!DOCTYPE html><html><head>" +
+                "<meta name='viewport' content='width=device-width, initial-scale=1.0'>" +
+                "<style>*{margin:0;padding:0}html,body{width:100%;height:100%;background:#000}" +
+                "iframe{width:100%;height:100%;border:0}</style></head><body>" +
+                "<iframe src='https://www.youtube.com/embed/" + Uri.EscapeDataString(videoId) +
+                "?autoplay=1&rel=0&playsinline=1' allow='autoplay' allowfullscreen></iframe>" +
+                "</body></html>";
 
-                if (result.Error != null || string.IsNullOrEmpty(result.StreamUrl))
-                {
-                    PlayerLoadingRing.IsActive = false;
-                    ShowDebug(videoId, result);
-                    return;
-                }
-
-                VideoPlayer.Source = MediaSource.CreateFromUri(new Uri(result.StreamUrl));
-                PlayerLoadingRing.IsActive = false;
-            }
-            catch (Exception ex)
-            {
-                PlayerVideoAuthor.Text = "Playback error: " + ex.Message;
-                PlayerLoadingRing.IsActive = false;
-            }
+            VideoWebView.NavigateToString(embedHtml);
+            PlayerLoadingRing.IsActive = false;
         }
 
         private void ShowDebug(string videoId, Services.InnerTubeService.PlayerResult result)
@@ -151,11 +142,26 @@ namespace subwayTube
 
         private void ClosePlayer()
         {
-            VideoPlayer.Source = null;
+            VideoWebView.NavigateToString("");
             PlayerOverlay.Visibility = Visibility.Collapsed;
             DebugOverlay.Visibility = Visibility.Collapsed;
             _isPlayerOpen = false;
             UpdateBackButtonVisibility();
+        }
+
+        private void VideoWebView_NavigationStarting(WebView sender, WebViewNavigationStartingEventArgs args)
+        {
+            // Allow YouTube embeds and about:blank, block everything else
+            if (args.Uri != null)
+            {
+                var host = args.Uri.Host;
+                if (host != "www.youtube.com" && host != "youtube.com" &&
+                    host != "www.youtube-nocookie.com" && host != "accounts.google.com" &&
+                    args.Uri.Scheme != "about")
+                {
+                    args.Cancel = true;
+                }
+            }
         }
 
         private void OnBackRequested(object sender, BackRequestedEventArgs e)

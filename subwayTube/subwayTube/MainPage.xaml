@@ -106,11 +106,9 @@
                     HorizontalAlignment="Left"
                     Margin="8" />
 
-            <MediaPlayerElement x:Name="VideoPlayer"
-                                Grid.Row="1"
-                                AreTransportControlsEnabled="True"
-                                AutoPlay="True"
-                                Stretch="Uniform" />
+            <WebView x:Name="VideoWebView"
+                     Grid.Row="1"
+                     NavigationStarting="VideoWebView_NavigationStarting" />
 
             <ProgressRing x:Name="PlayerLoadingRing"
                           Grid.Row="1"
