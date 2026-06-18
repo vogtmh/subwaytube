@@ -240,6 +240,8 @@ namespace subwayTube
             if (dashSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
                 var adaptiveSource = dashSource.MediaSource;
+                // Start at highest available bitrate (default is lowest)
+                adaptiveSource.InitialBitrate = adaptiveSource.AvailableBitrates.Max();
                 // Intercept downloads to add Range header (YouTube 403s without it)
                 adaptiveSource.DownloadRequested += OnDashDownloadRequested;
                 var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
