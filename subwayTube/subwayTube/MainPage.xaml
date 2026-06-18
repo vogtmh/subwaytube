@@ -161,11 +161,14 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <Button Grid.Row="0"
-                    Content="Close Debug"
-                    Click="CloseDebug_Click"
-                    HorizontalAlignment="Left"
-                    Margin="8" />
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8" Spacing="8">
+                <Button Content="Close"
+                        Click="CloseDebug_Click" />
+                <Button Content="Copy"
+                        Click="CopyDebug_Click" />
+                <Button Content="Save"
+                        Click="SaveDebug_Click" />
+            </StackPanel>
 
             <ScrollViewer Grid.Row="1" Margin="8">
                 <TextBlock x:Name="DebugText"

@@ -201,7 +201,9 @@ namespace subwayTube
             var hlsSource = await AdaptiveMediaSource.CreateFromUriAsync(new Uri(hlsUrl), _streamClient);
             if (hlsSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
-                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(hlsSource.MediaSource);
+                var adaptiveSource = hlsSource.MediaSource;
+                adaptiveSource.DownloadRequested += OnDashDownloadRequested;
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
                 VideoPlayer.Source = mediaSource;
             }
             else
@@ -212,7 +214,7 @@ namespace subwayTube
 
         /// <summary>
         /// Plays a locally-generated DASH MPD manifest via AdaptiveMediaSource.
-        /// Uses custom HttpClient with IOS User-Agent so segment fetches don't get 403'd.
+        /// Intercepts segment downloads to use IOS User-Agent (YouTube 403s without it).
         /// </summary>
         private async System.Threading.Tasks.Task PlayDash(string dashMpd)
         {
@@ -240,12 +242,37 @@ namespace subwayTube
 
             if (dashSource.Status == AdaptiveMediaSourceCreationStatus.Success)
             {
-                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(dashSource.MediaSource);
+                var adaptiveSource = dashSource.MediaSource;
+
+                // Intercept every segment/init download to fetch with IOS User-Agent ourselves.
+                // AdaptiveMediaSource may not forward our HttpClient headers on all requests.
+                adaptiveSource.DownloadRequested += OnDashDownloadRequested;
+
+                var mediaSource = MediaSource.CreateFromAdaptiveMediaSource(adaptiveSource);
                 VideoPlayer.Source = mediaSource;
             }
             else
             {
                 throw new Exception("DASH failed: " + dashSource.Status);
+            }
+        }
+
+        private async void OnDashDownloadRequested(AdaptiveMediaSource sender, AdaptiveMediaSourceDownloadRequestedEventArgs args)
+        {
+            var deferral = args.GetDeferral();
+            try
+            {
+                // Fetch the segment ourselves with IOS User-Agent
+                var response = await _streamClient.GetAsync(args.ResourceUri);
+                args.Result.HttpResponseMessage = response;
+            }
+            catch
+            {
+                // Let the player handle the error naturally
+            }
+            finally
+            {
+                deferral.Complete();
             }
         }
 
@@ -389,6 +416,26 @@ namespace subwayTube
         private void CloseDebug_Click(object sender, RoutedEventArgs e)
         {
             DebugOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void CopyDebug_Click(object sender, RoutedEventArgs e)
+        {
+            var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dp.SetText(DebugText.Text);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+        }
+
+        private async void SaveDebug_Click(object sender, RoutedEventArgs e)
+        {
+            var picker = new Windows.Storage.Pickers.FileSavePicker();
+            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary;
+            picker.FileTypeChoices.Add("Text", new List<string> { ".txt" });
+            picker.SuggestedFileName = "debug_" + (_currentVideoId ?? "log");
+            var file = await picker.PickSaveFileAsync();
+            if (file != null)
+            {
+                await Windows.Storage.FileIO.WriteTextAsync(file, DebugText.Text);
+            }
         }
 
         private void ClosePlayerButton_Click(object sender, RoutedEventArgs e)
