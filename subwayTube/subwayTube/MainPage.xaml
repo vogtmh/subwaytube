@@ -135,5 +135,31 @@
                            Margin="0,4,0,0" />
             </StackPanel>
         </Grid>
+
+        <!-- Debug overlay (fullscreen, scrollable) -->
+        <Grid x:Name="DebugOverlay"
+              Grid.RowSpan="3"
+              Background="Black"
+              Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Button Grid.Row="0"
+                    Content="Close Debug"
+                    Click="CloseDebug_Click"
+                    HorizontalAlignment="Left"
+                    Margin="8" />
+
+            <ScrollViewer Grid.Row="1" Margin="8">
+                <TextBlock x:Name="DebugText"
+                           Foreground="#00FF00"
+                           FontSize="11"
+                           FontFamily="Consolas"
+                           TextWrapping="Wrap"
+                           IsTextSelectionEnabled="True" />
+            </ScrollViewer>
+        </Grid>
     </Grid>
 </Page>

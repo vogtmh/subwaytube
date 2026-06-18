@@ -59,7 +59,7 @@ namespace subwayTube.Services
         /// Get a direct 360p stream URL for a video using the InnerTube API (IOS client).
         /// The IOS client typically returns direct stream URLs without signature deciphering.
         /// </summary>
-        public async Task<string> GetStreamUrlAsync(string videoId)
+        public async Task<PlayerResult> GetStreamUrlAsync(string videoId)
         {
             var body = new JsonObject
             {
@@ -88,10 +88,36 @@ namespace subwayTube.Services
             var response = await _httpClient.SendAsync(request);
             var json = await response.Content.ReadAsStringAsync();
 
-            if (!response.IsSuccessStatusCode)
-                throw new Exception("Player API returned " + (int)response.StatusCode + ": " + json.Substring(0, Math.Min(200, json.Length)));
+            var result = new PlayerResult();
+            result.RawJson = json;
+            result.RequestBody = body.Stringify();
+            result.StatusCode = (int)response.StatusCode;
 
-            return ParseStreamUrl(json);
+            if (!response.IsSuccessStatusCode)
+            {
+                result.Error = "HTTP " + result.StatusCode;
+                return result;
+            }
+
+            try
+            {
+                result.StreamUrl = ParseStreamUrl(json);
+            }
+            catch (Exception ex)
+            {
+                result.Error = ex.Message;
+            }
+
+            return result;
+        }
+
+        public class PlayerResult
+        {
+            public string StreamUrl { get; set; }
+            public string RawJson { get; set; }
+            public string RequestBody { get; set; }
+            public string Error { get; set; }
+            public int StatusCode { get; set; }
         }
 
         private List<VideoResult> ParseSearchResults(string json)
