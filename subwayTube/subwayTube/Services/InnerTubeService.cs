@@ -269,22 +269,25 @@ namespace subwayTube.Services
                     for (uint i = 0; i < gridContents.Count && results.Count < 30; i++)
                     {
                         var gridItem = gridContents.GetObjectAt(i);
-                        JsonObject videoRenderer = null;
+                        VideoResult result = null;
 
                         if (gridItem.ContainsKey("richItemRenderer"))
                         {
                             var richContent = gridItem.GetNamedObject("richItemRenderer").GetNamedObject("content");
                             if (richContent.ContainsKey("videoRenderer"))
-                                videoRenderer = richContent.GetNamedObject("videoRenderer");
+                            {
+                                result = ParseVideoRenderer(richContent.GetNamedObject("videoRenderer"));
+                            }
+                            else if (richContent.ContainsKey("lockupViewModel"))
+                            {
+                                result = ParseLockupViewModel(richContent.GetNamedObject("lockupViewModel"));
+                            }
                         }
                         else if (gridItem.ContainsKey("gridVideoRenderer"))
                         {
-                            videoRenderer = gridItem.GetNamedObject("gridVideoRenderer");
+                            result = ParseVideoRenderer(gridItem.GetNamedObject("gridVideoRenderer"));
                         }
 
-                        if (videoRenderer == null) continue;
-
-                        var result = ParseVideoRenderer(videoRenderer);
                         if (result != null)
                         {
                             if (string.IsNullOrEmpty(result.Author))
@@ -539,6 +542,79 @@ namespace subwayTube.Services
                 };
             }
             catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses the new lockupViewModel format used by the browse API (channel videos tab).
+        /// Structure: contentId (videoId), metadata.lockupMetadataViewModel.title.content,
+        /// metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows
+        /// </summary>
+        private VideoResult ParseLockupViewModel(JsonObject lockup)
+        {
+            try
+            {
+                var videoId = lockup.GetNamedString("contentId");
+                string thumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+
+                string title = "";
+                string publishedText = "";
+                string viewCount = "";
+
+                if (lockup.ContainsKey("metadata"))
+                {
+                    var metaWrapper = lockup.GetNamedObject("metadata");
+                    if (metaWrapper.ContainsKey("lockupMetadataViewModel"))
+                    {
+                        var lm = metaWrapper.GetNamedObject("lockupMetadataViewModel");
+
+                        // Title
+                        if (lm.ContainsKey("title"))
+                        {
+                            var titleObj = lm.GetNamedObject("title");
+                            if (titleObj.ContainsKey("content"))
+                                title = titleObj.GetNamedString("content");
+                        }
+
+                        // Metadata rows: views + published time
+                        if (lm.ContainsKey("metadata"))
+                        {
+                            try
+                            {
+                                var cmvm = lm.GetNamedObject("metadata")
+                                    .GetNamedObject("contentMetadataViewModel");
+                                var rows = cmvm.GetNamedArray("metadataRows");
+                                if (rows.Count > 0)
+                                {
+                                    var parts = rows.GetObjectAt(0).GetNamedArray("metadataParts");
+                                    for (uint p = 0; p < parts.Count; p++)
+                                    {
+                                        var part = parts.GetObjectAt(p);
+                                        var text = part.GetNamedObject("text").GetNamedString("content");
+                                        if (text.Contains("view"))
+                                            viewCount = text;
+                                        else
+                                            publishedText = text;
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                return new VideoResult
+                {
+                    VideoId = videoId,
+                    Title = title,
+                    ThumbnailUrl = thumbnailUrl,
+                    ViewCount = viewCount,
+                    PublishedText = publishedText
+                };
+            }
+            catch
             {
                 return null;
             }
