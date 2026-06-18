@@ -303,9 +303,15 @@ namespace subwayTube
                         info += "  - itag " + f.Itag + " " + f.QualityLabel + " " + f.MimeType
                             + (f.IsMuxed ? " [muxed]" : "") + " url=" + (f.Url != null ? "yes" : "no") + "\n";
                     }
-                    info += "\n=== RAW RESPONSE (first 3000 chars) ===\n";
-                    var raw = _lastPlayerResponse.RawJson ?? "";
-                    info += raw.Substring(0, Math.Min(3000, raw.Length));
+                    // Show generated DASH manifest
+                    var dashMpd = DashManifestGenerator.Generate(_lastPlayerResponse.Formats);
+                    if (dashMpd != null)
+                    {
+                        info += "\n=== DASH MANIFEST ===\n" + dashMpd + "\n";
+                    }
+
+                    info += "\n=== RAW RESPONSE ===\n";
+                    info += _lastPlayerResponse.RawJson ?? "";
                 }
 
                 DebugText.Text = info;
@@ -365,9 +371,16 @@ namespace subwayTube
             info += "HLS URL: " + (result.HlsManifestUrl ?? "null") + "\n";
             info += "Formats found: " + result.Formats.Count + "\n\n";
             info += "=== REQUEST BODY ===\n" + (result.RequestBody ?? "") + "\n\n";
-            info += "=== RAW RESPONSE (first 5000 chars) ===\n";
-            var raw = result.RawJson ?? "";
-            info += raw.Substring(0, Math.Min(5000, raw.Length));
+
+            // Show generated DASH manifest if available
+            var dashMpd = DashManifestGenerator.Generate(result.Formats);
+            if (dashMpd != null)
+            {
+                info += "=== DASH MANIFEST ===\n" + dashMpd + "\n\n";
+            }
+
+            info += "=== RAW RESPONSE ===\n";
+            info += result.RawJson ?? "";
 
             DebugText.Text = info;
             DebugOverlay.Visibility = Visibility.Visible;
