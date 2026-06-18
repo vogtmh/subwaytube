@@ -1,0 +1,7 @@
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\App.g.i.cs
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\App.g.cs
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\App.xaml
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\MainPage.xaml
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\App.xbf
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\MainPage.xbf
+C:\Users\mavo\Documents\subwaytube\subwayTube\subwayTube\obj\x64\Debug\XamlSaveStateFile.xml
