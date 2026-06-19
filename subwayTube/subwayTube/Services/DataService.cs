@@ -17,11 +17,13 @@ namespace subwayTube.Services
         private const string SubscriptionsFile = "subscriptions.json";
         private const string HistoryFile = "history.json";
         private const string SearchHistoryFile = "searchhistory.json";
+        private const string DownloadsFile = "downloads.json";
         private readonly SemaphoreSlim _saveLock = new SemaphoreSlim(1, 1);
 
         public ObservableCollection<Subscription> Subscriptions { get; private set; } = new ObservableCollection<Subscription>();
         public ObservableCollection<HistoryItem> History { get; private set; } = new ObservableCollection<HistoryItem>();
         public List<SearchHistoryItem> SearchHistory { get; private set; } = new List<SearchHistoryItem>();
+        public ObservableCollection<DownloadItem> Downloads { get; private set; } = new ObservableCollection<DownloadItem>();
 
         public async Task LoadAllAsync()
         {
@@ -30,6 +32,8 @@ namespace subwayTube.Services
             var hist = await LoadListAsync<HistoryItem>(HistoryFile);
             History = new ObservableCollection<HistoryItem>(hist ?? new List<HistoryItem>());
             SearchHistory = await LoadListAsync<SearchHistoryItem>(SearchHistoryFile) ?? new List<SearchHistoryItem>();
+            var dls = await LoadListAsync<DownloadItem>(DownloadsFile);
+            Downloads = new ObservableCollection<DownloadItem>(dls ?? new List<DownloadItem>());
         }
 
         // Subscriptions
@@ -97,6 +101,103 @@ namespace subwayTube.Services
             if (SearchHistory.Count > 50)
                 SearchHistory.RemoveRange(0, SearchHistory.Count - 50);
             await SaveListAsync(SearchHistory, SearchHistoryFile);
+        }
+
+        // Clear play history
+        public async Task ClearHistory()
+        {
+            History.Clear();
+            await SaveListAsync(History.ToList(), HistoryFile);
+        }
+
+        // Downloads
+        public bool IsDownloaded(string videoId)
+        {
+            foreach (var d in Downloads)
+                if (d.VideoId == videoId) return true;
+            return false;
+        }
+
+        public DownloadItem GetDownload(string videoId)
+        {
+            foreach (var d in Downloads)
+                if (d.VideoId == videoId) return d;
+            return null;
+        }
+
+        public async Task AddDownloadRecord(DownloadItem item)
+        {
+            // Remove any existing record for the same video first
+            for (int i = Downloads.Count - 1; i >= 0; i--)
+                if (Downloads[i].VideoId == item.VideoId)
+                    Downloads.RemoveAt(i);
+            Downloads.Insert(0, item);
+            await SaveListAsync(Downloads.ToList(), DownloadsFile);
+        }
+
+        public async Task RemoveDownloadRecord(string videoId)
+        {
+            for (int i = Downloads.Count - 1; i >= 0; i--)
+                if (Downloads[i].VideoId == videoId)
+                    Downloads.RemoveAt(i);
+            await SaveListAsync(Downloads.ToList(), DownloadsFile);
+        }
+
+        // Backup / restore (transfers subscriptions, history and search history,
+        // but not downloaded videos)
+        public string ExportBackup()
+        {
+            var backup = new BackupData
+            {
+                Info = "subwayTube backup",
+                Subscriptions = Subscriptions.ToList(),
+                History = History.ToList(),
+                SearchHistory = SearchHistory.ToList()
+            };
+            var serializer = new DataContractJsonSerializer(typeof(BackupData));
+            using (var stream = new MemoryStream())
+            {
+                serializer.WriteObject(stream, backup);
+                return Encoding.UTF8.GetString(stream.ToArray());
+            }
+        }
+
+        public async Task<bool> ImportBackupAsync(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return false;
+
+            BackupData backup;
+            try
+            {
+                var serializer = new DataContractJsonSerializer(typeof(BackupData));
+                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+                {
+                    backup = serializer.ReadObject(stream) as BackupData;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (backup == null)
+                return false;
+
+            Subscriptions.Clear();
+            foreach (var s in backup.Subscriptions ?? new List<Subscription>())
+                Subscriptions.Add(s);
+
+            History.Clear();
+            foreach (var h in backup.History ?? new List<HistoryItem>())
+                History.Add(h);
+
+            SearchHistory = backup.SearchHistory ?? new List<SearchHistoryItem>();
+
+            await SaveListAsync(Subscriptions.ToList(), SubscriptionsFile);
+            await SaveListAsync(History.ToList(), HistoryFile);
+            await SaveListAsync(SearchHistory, SearchHistoryFile);
+            return true;
         }
 
         // Generic JSON persistence

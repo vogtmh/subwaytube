@@ -105,6 +105,7 @@
     <Compile Include="Services\DashManifestGenerator.cs" />
     <Compile Include="Services\InnerTubeService.cs" />
     <Compile Include="Services\IosUserAgentFilter.cs" />
+    <Compile Include="Services\HttpRandomAccessStream.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -113,6 +114,7 @@
     </AppxManifest>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Assets\toplogo.png" />
     <Content Include="Assets\LargeTile.scale-200.png" />
     <Content Include="Assets\LargeTile.scale-200.scale-100.png" />
     <Content Include="Assets\LargeTile.scale-200.scale-125.png" />

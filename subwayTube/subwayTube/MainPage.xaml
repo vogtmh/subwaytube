@@ -18,8 +18,9 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBlock Text="subwayTube" FontSize="20" FontWeight="Bold"
-                       Foreground="White" VerticalAlignment="Center" />
+            <Image Source="ms-appx:///Assets/toplogo.png" Height="24"
+                   HorizontalAlignment="Left" VerticalAlignment="Center"
+                   Stretch="Uniform" />
             <Button x:Name="ScaleButton" Grid.Column="1"
                     Click="ScaleButton_Click" Background="Transparent"
                     Margin="4,0,0,0">
@@ -43,6 +44,7 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center"
                        TextWrapping="Wrap" Margin="40" TextAlignment="Center" />
             <GridView x:Name="FeedList" Background="Transparent"
+                      Loaded="FeedList_Loaded"
                       ItemClick="FeedList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
                 <GridView.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -52,7 +54,14 @@
                 <GridView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Padding="4">
-                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            <Grid>
+                                <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                                <Button Click="ThumbnailDownload_Click" Tag="{Binding}"
+                                        Background="#CC000000" Padding="6"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE896;" FontSize="16" Foreground="White" />
+                                </Button>
+                            </Grid>
                             <TextBlock Text="{Binding Title}" Foreground="White" FontSize="13" TextWrapping="Wrap" MaxLines="2" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="11" />
                             <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="10" />
@@ -110,7 +119,14 @@
                 <GridView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Padding="4">
-                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            <Grid>
+                                <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                                <Button Click="ThumbnailDownload_Click" Tag="{Binding}"
+                                        Background="#CC000000" Padding="6"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE896;" FontSize="16" Foreground="White" />
+                                </Button>
+                            </Grid>
                             <TextBlock Text="{Binding Title}" Foreground="White" FontSize="13" TextWrapping="Wrap" MaxLines="2" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="11" />
                             <TextBlock Text="{Binding Duration}" Foreground="Gray" FontSize="10" />
@@ -132,12 +148,16 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Button x:Name="FavChannelsTab" Grid.Column="0" Content="Channels"
                         Click="FavChannelsTab_Click" HorizontalAlignment="Stretch"
                         Background="{ThemeResource SystemAccentColor}" Foreground="White" />
                 <Button x:Name="FavHistoryTab" Grid.Column="1" Content="History"
                         Click="FavHistoryTab_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+                <Button x:Name="FavDownloadsTab" Grid.Column="2" Content="Downloads"
+                        Click="FavDownloadsTab_Click" HorizontalAlignment="Stretch"
                         Background="#333333" Foreground="White" />
             </Grid>
 
@@ -185,11 +205,79 @@
                     </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
+
+            <!-- Downloads list -->
+            <ListView x:Name="DownloadsList" Grid.Row="1" Background="Transparent"
+                      ItemClick="DownloadsList_ItemClick" IsItemClickEnabled="True"
+                      SelectionMode="None" Visibility="Collapsed">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Image Grid.Column="0" Source="{Binding DisplayThumbnail}" Width="160" Height="90" Stretch="UniformToFill" />
+                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="14" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding SizeText}" Foreground="Gray" FontSize="11" Margin="0,2,0,0" />
+                            </StackPanel>
+                            <Button Grid.Column="2" Click="DownloadDelete_Click" Tag="{Binding}"
+                                    Background="Transparent" VerticalAlignment="Center">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE74D;" FontSize="18" Foreground="White" />
+                            </Button>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
         </Grid>
+
+        <!-- ==================== SETTINGS PANEL ==================== -->
+        <ScrollViewer x:Name="SettingsPanel" Grid.Row="1" Visibility="Collapsed"
+                      VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto">
+            <StackPanel Padding="20,24" HorizontalAlignment="Stretch">
+                <TextBlock x:Name="SettingsProductName" Text="subwayTube"
+                           FontSize="26" FontWeight="Bold" Foreground="White" />
+                <TextBlock x:Name="SettingsVersion" Text="Version"
+                           FontSize="14" Foreground="Gray" Margin="0,2,0,0" />
+                <TextBlock Text="Developed by mavodev"
+                           FontSize="14" Foreground="Gray" Margin="0,2,0,0" />
+
+                <TextBlock Text="Data" FontSize="18" FontWeight="SemiBold"
+                           Foreground="White" Margin="0,28,0,8" />
+                <TextBlock Text="Backup and restore transfer your subscriptions, history and search history to another phone (downloaded videos are not included)."
+                           FontSize="12" Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,12" />
+                <Button x:Name="BackupButton" Content="Backup"
+                        Click="BackupButton_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" Margin="0,0,0,8" />
+                <Button x:Name="RestoreButton" Content="Restore"
+                        Click="RestoreButton_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" Margin="0,0,0,8" />
+                <Button x:Name="ClearHistoryButton" Content="Clear history"
+                        Click="ClearHistoryButton_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+
+                <TextBlock Text="Download folder" FontSize="18" FontWeight="SemiBold"
+                           Foreground="White" Margin="0,28,0,8" />
+                <TextBlock x:Name="DownloadFolderPath" Text="Not set"
+                           FontSize="13" Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,8" />
+                <TextBlock x:Name="DownloadFolderUsage" Text=""
+                           FontSize="13" Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,8" />
+                <Button x:Name="ChangeDownloadFolderButton" Content="Change"
+                        Click="ChangeDownloadFolderButton_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+
+                <TextBlock x:Name="SettingsStatus" Text="" FontSize="13"
+                           Foreground="#0078D7" TextWrapping="Wrap" Margin="0,16,0,0" />
+            </StackPanel>
+        </ScrollViewer>
 
         <!-- ==================== BOTTOM NAVIGATION ==================== -->
         <Grid Grid.Row="2" Background="#111111">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -211,6 +299,12 @@
                     HorizontalAlignment="Stretch" Height="50" Background="#111111">
                 <StackPanel>
                     <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE734;" FontSize="20" Foreground="White" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="NavSettings" Grid.Column="3" Click="NavSettings_Click"
+                    HorizontalAlignment="Stretch" Height="50" Background="#111111">
+                <StackPanel>
+                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE713;" FontSize="20" Foreground="White" />
                 </StackPanel>
             </Button>
         </Grid>
@@ -264,7 +358,14 @@
                 <GridView.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Padding="4">
-                            <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            <Grid>
+                                <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                                <Button Click="ThumbnailDownload_Click" Tag="{Binding}"
+                                        Background="#CC000000" Padding="6"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE896;" FontSize="16" Foreground="White" />
+                                </Button>
+                            </Grid>
                             <TextBlock Text="{Binding Title}" Foreground="White" FontSize="13" TextWrapping="Wrap" MaxLines="2" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding PublishedText}" Foreground="Gray" FontSize="11" />
                         </StackPanel>
@@ -306,6 +407,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0">
                     <TextBlock x:Name="PlayerTitle" Foreground="White" FontSize="16" TextWrapping="Wrap" Visibility="Collapsed" />
@@ -317,7 +419,12 @@
                     <FontIcon x:Name="PlayerHeartIcon" FontFamily="Segoe MDL2 Assets"
                               Glyph="&#xEB51;" FontSize="22" Foreground="White" />
                 </Button>
-                <Button x:Name="PlayerShareBtn" Grid.Column="2" Click="PlayerShare_Click"
+                <Button x:Name="PlayerDownloadBtn" Grid.Column="2" Click="PlayerDownload_Click"
+                        Background="Transparent" VerticalAlignment="Top" Margin="4,0">
+                    <FontIcon x:Name="PlayerDownloadIcon" FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xE896;" FontSize="20" Foreground="White" />
+                </Button>
+                <Button x:Name="PlayerShareBtn" Grid.Column="3" Click="PlayerShare_Click"
                         Background="Transparent" VerticalAlignment="Top" Margin="4,0">
                     <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE72D;" FontSize="20" Foreground="White" />
                 </Button>
@@ -340,5 +447,17 @@
                            FontFamily="Consolas" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
             </ScrollViewer>
         </Grid>
+
+        <!-- ==================== DOWNLOAD PROGRESS ==================== -->
+        <Border x:Name="DownloadProgressBar" Grid.RowSpan="3" Background="#1a1a1a"
+                BorderBrush="#333333" BorderThickness="0,1,0,0"
+                VerticalAlignment="Bottom" Padding="12,8" Visibility="Collapsed">
+            <StackPanel>
+                <TextBlock x:Name="DownloadProgressText" Foreground="White" FontSize="13"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,0,4" />
+                <ProgressBar x:Name="DownloadProgress" Minimum="0" Maximum="100" Value="0"
+                             Foreground="#0078D7" Height="6" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Page>
