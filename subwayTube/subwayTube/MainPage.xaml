@@ -361,6 +361,7 @@
         <Grid x:Name="ChannelOverlay" Grid.RowSpan="3" Background="Black" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -393,10 +394,23 @@
                 </Button>
             </Grid>
 
-            <ProgressRing x:Name="ChannelLoadingRing" Grid.Row="1" IsActive="False"
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="ChannelVideosTab" Grid.Column="0" Content="Videos"
+                        Click="ChannelVideosTab_Click" HorizontalAlignment="Stretch"
+                        Background="{ThemeResource SystemAccentColor}" Foreground="White" />
+                <Button x:Name="ChannelShortsTab" Grid.Column="1" Content="Shorts"
+                        Click="ChannelShortsTab_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+            </Grid>
+
+            <ProgressRing x:Name="ChannelLoadingRing" Grid.Row="2" IsActive="False"
                           Width="50" Height="50" Foreground="White"
                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-            <GridView x:Name="ChannelVideosList" Grid.Row="1" Background="Transparent"
+            <GridView x:Name="ChannelVideosList" Grid.Row="2" Background="Transparent"
                       ItemClick="ChannelVideosList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
                 <GridView.ItemsPanel>
                     <ItemsPanelTemplate>

@@ -51,6 +51,7 @@ namespace subwayTube
         private int _activeTab; // 0=Feed, 1=Search, 2=Favorites
         private int _favSubTab; // 0=Channels, 1=History
         private int _searchTab; // 0=Videos, 1=Shorts, 2=Channels
+        private int _channelTab; // 0=Videos, 1=Shorts
         private bool _feedLoaded;
         private int _scaleMode; // 0=full, 1=half (2 per row), 2=third (3 per row)
         private static readonly Windows.Storage.ApplicationDataContainer _localSettings = Windows.Storage.ApplicationData.Current.LocalSettings;
@@ -156,6 +157,7 @@ namespace subwayTube
         private void ShowFeed()
         {
             _activeTab = 0;
+            ResetSearch();
             FeedPanel.Visibility = Visibility.Visible;
             SearchPanel.Visibility = Visibility.Collapsed;
             FavoritesPanel.Visibility = Visibility.Collapsed;
@@ -189,6 +191,7 @@ namespace subwayTube
         private void ShowFavorites()
         {
             _activeTab = 2;
+            ResetSearch();
             FeedPanel.Visibility = Visibility.Collapsed;
             SearchPanel.Visibility = Visibility.Collapsed;
             FavoritesPanel.Visibility = Visibility.Visible;
@@ -206,6 +209,7 @@ namespace subwayTube
         private void ShowSettings()
         {
             _activeTab = 3;
+            ResetSearch();
             FeedPanel.Visibility = Visibility.Collapsed;
             SearchPanel.Visibility = Visibility.Collapsed;
             FavoritesPanel.Visibility = Visibility.Collapsed;
@@ -1090,6 +1094,20 @@ namespace subwayTube
             OpenChannel(ch.AuthorId, ch.Title, ch.ThumbnailUrl);
         }
 
+        private void ResetSearch()
+        {
+            // Clear results and the query, then fall back to the search history list
+            // so the search tab starts fresh next time it is opened.
+            _searchTab = 0;
+            _results.Clear();
+            _channelResults.Clear();
+            SearchBox.Text = "";
+            ErrorText.Visibility = Visibility.Collapsed;
+            LoadingRing.IsActive = false;
+            UpdateSearchTabStyles();
+            UpdateSearchHistoryVisibility();
+        }
+
         private void UpdateSearchHistoryVisibility()
         {
             bool channelTab = _searchTab == 2;
@@ -1215,6 +1233,8 @@ namespace subwayTube
         private async void OpenChannel(string authorId, string author, string thumbnailUrl)
         {
             _isChannelOpen = true;
+            _channelTab = 0;
+            UpdateChannelTabStyles();
             ChannelOverlay.Visibility = Visibility.Visible;
             ChannelName.Text = author;
             ChannelLoadingRing.IsActive = true;
@@ -1235,20 +1255,52 @@ namespace subwayTube
             _currentAuthor = author;
             _currentThumbnailUrl = thumbnailUrl;
 
+            await LoadChannelContent();
+        }
+
+        private async System.Threading.Tasks.Task LoadChannelContent()
+        {
+            ChannelLoadingRing.IsActive = true;
+            ChannelVideosList.Visibility = Visibility.Collapsed;
+            ChannelVideosList.ItemsSource = null;
+
             try
             {
-                var videos = await _innerTube.GetChannelVideosAsync(authorId);
+                string kind = _channelTab == 1 ? "short" : "video";
+                var videos = await _innerTube.GetChannelVideosAsync(_currentAuthorId, kind);
                 ChannelVideosList.ItemsSource = videos;
                 ChannelVideosList.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
-                ChannelName.Text = author + " - Error: " + ex.Message;
+                ChannelName.Text = _currentAuthor + " - Error: " + ex.Message;
             }
             finally
             {
                 ChannelLoadingRing.IsActive = false;
             }
+        }
+
+        private void UpdateChannelTabStyles()
+        {
+            ChannelVideosTab.Background = _channelTab == 0 ? _accentBrush : _darkGrayBrush;
+            ChannelShortsTab.Background = _channelTab == 1 ? _accentBrush : _darkGrayBrush;
+        }
+
+        private async void ChannelVideosTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_channelTab == 0) return;
+            _channelTab = 0;
+            UpdateChannelTabStyles();
+            await LoadChannelContent();
+        }
+
+        private async void ChannelShortsTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_channelTab == 1) return;
+            _channelTab = 1;
+            UpdateChannelTabStyles();
+            await LoadChannelContent();
         }
 
         private void CloseChannel_Click(object sender, RoutedEventArgs e)

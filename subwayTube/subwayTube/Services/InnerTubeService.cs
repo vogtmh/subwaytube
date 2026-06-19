@@ -191,8 +191,13 @@ namespace subwayTube.Services
         /// <summary>
         /// Get recent videos from a channel using the InnerTube browse API (WEB client).
         /// </summary>
-        public async Task<List<VideoResult>> GetChannelVideosAsync(string channelId)
+        public async Task<List<VideoResult>> GetChannelVideosAsync(string channelId, string kind = "video")
         {
+            // Browse params select the channel tab: Videos vs Shorts.
+            string browseParams = kind == "short"
+                ? "EgZzaG9ydHPyBgUKA5oBAA=="   // Shorts tab
+                : "EgZ2aWRlb3PyBgQKAjoA";      // Videos tab
+
             var body = new JsonObject
             {
                 ["context"] = new JsonObject
@@ -206,7 +211,7 @@ namespace subwayTube.Services
                     }
                 },
                 ["browseId"] = JsonValue.CreateStringValue(channelId),
-                ["params"] = JsonValue.CreateStringValue("EgZ2aWRlb3PyBgQKAjoA")
+                ["params"] = JsonValue.CreateStringValue(browseParams)
             };
 
             var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
@@ -214,10 +219,10 @@ namespace subwayTube.Services
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
-            return ParseChannelVideos(json, channelId);
+            return ParseChannelVideos(json, channelId, kind);
         }
 
-        private List<VideoResult> ParseChannelVideos(string json, string channelId)
+        private List<VideoResult> ParseChannelVideos(string json, string channelId, string kind = "video")
         {
             var results = new List<VideoResult>();
 
@@ -291,6 +296,10 @@ namespace subwayTube.Services
                             if (richContent.ContainsKey("videoRenderer"))
                             {
                                 result = ParseVideoRenderer(richContent.GetNamedObject("videoRenderer"));
+                            }
+                            else if (richContent.ContainsKey("shortsLockupViewModel"))
+                            {
+                                result = ParseShortsLockup(richContent.GetNamedObject("shortsLockupViewModel"));
                             }
                             else if (richContent.ContainsKey("lockupViewModel"))
                             {
