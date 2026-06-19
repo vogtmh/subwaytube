@@ -586,16 +586,29 @@ namespace subwayTube.Services
                                 var cmvm = lm.GetNamedObject("metadata")
                                     .GetNamedObject("contentMetadataViewModel");
                                 var rows = cmvm.GetNamedArray("metadataRows");
-                                if (rows.Count > 0)
+                                // Scan every row/part — the published time isn't always in
+                                // row 0 (row 0 may hold the channel name), and view count
+                                // may be absent. Classify each part by its text.
+                                for (uint r = 0; r < rows.Count; r++)
                                 {
-                                    var parts = rows.GetObjectAt(0).GetNamedArray("metadataParts");
+                                    var row = rows.GetObjectAt(r);
+                                    if (!row.ContainsKey("metadataParts")) continue;
+                                    var parts = row.GetNamedArray("metadataParts");
                                     for (uint p = 0; p < parts.Count; p++)
                                     {
                                         var part = parts.GetObjectAt(p);
-                                        var text = part.GetNamedObject("text").GetNamedString("content");
-                                        if (text.Contains("view"))
+                                        if (!part.ContainsKey("text")) continue;
+                                        var textObj = part.GetNamedObject("text");
+                                        if (!textObj.ContainsKey("content")) continue;
+                                        var text = textObj.GetNamedString("content");
+                                        if (string.IsNullOrEmpty(text)) continue;
+
+                                        var lower = text.ToLowerInvariant();
+                                        if (lower.Contains("view"))
                                             viewCount = text;
-                                        else
+                                        else if (lower.Contains("ago") ||
+                                                 lower.Contains("streamed") ||
+                                                 lower.Contains("premiered"))
                                             publishedText = text;
                                     }
                                 }
