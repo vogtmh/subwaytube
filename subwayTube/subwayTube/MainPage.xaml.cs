@@ -44,6 +44,8 @@ namespace subwayTube
         private string _cachedHlsUrl;
         private StreamFormat _cachedMuxedFormat;
         private readonly Windows.Web.Http.HttpClient _streamClient;
+        private readonly Windows.System.Display.DisplayRequest _displayRequest = new Windows.System.Display.DisplayRequest();
+        private bool _displayRequestActive;
         private int _activeTab; // 0=Feed, 1=Search, 2=Favorites
         private int _favSubTab; // 0=Channels, 1=History
         private bool _feedLoaded;
@@ -69,6 +71,7 @@ namespace subwayTube
 
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
             VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
+            VideoPlayer.MediaPlayer.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
 
             // Load data and show feed
             InitAsync();
@@ -1703,7 +1706,41 @@ namespace subwayTube
             DebugOverlay.Visibility = Visibility.Collapsed;
             _isPlayerOpen = false;
             _currentFormats = null;
+            ReleaseDisplayRequest();
             UpdateBackButtonVisibility();
+        }
+
+        // Keeps the screen awake while a video is actively playing, and lets it
+        // dim/lock normally when paused, buffering stalls, the video ends, or the
+        // player is closed.
+        private async void PlaybackSession_PlaybackStateChanged(
+            Windows.Media.Playback.MediaPlaybackSession sender, object args)
+        {
+            var state = sender.PlaybackState;
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+            {
+                if (state == Windows.Media.Playback.MediaPlaybackState.Playing)
+                    ActivateDisplayRequest();
+                else
+                    ReleaseDisplayRequest();
+            });
+        }
+
+        private void ActivateDisplayRequest()
+        {
+            if (_displayRequestActive)
+                return;
+            _displayRequest.RequestActive();
+            _displayRequestActive = true;
+        }
+
+        private void ReleaseDisplayRequest()
+        {
+            if (!_displayRequestActive)
+                return;
+            try { _displayRequest.RequestRelease(); }
+            catch { }
+            _displayRequestActive = false;
         }
 
         private void OnBackRequested(object sender, BackRequestedEventArgs e)
