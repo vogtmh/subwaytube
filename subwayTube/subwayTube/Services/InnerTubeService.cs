@@ -503,12 +503,9 @@ namespace subwayTube.Services
                             {
                                 ParseGridShelf(item.GetNamedObject("gridShelfViewModel"), results);
                             }
-                            // Short-form videos returned by the duration filter
-                            if (item.ContainsKey("videoRenderer"))
-                            {
-                                var v = ParseVideoRenderer(item.GetNamedObject("videoRenderer"));
-                                if (v != null) { v.Kind = "short"; results.Add(v); }
-                            }
+                            // NOTE: videoRenderer items returned alongside the Shorts shelves
+                            // are regular (long-form) videos, so they are intentionally
+                            // skipped here to keep the Shorts tab Shorts-only.
                             continue;
                         }
 

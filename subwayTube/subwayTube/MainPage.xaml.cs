@@ -1283,6 +1283,13 @@ namespace subwayTube
         {
             int session = ++_playSession;
 
+            // Guard against null strings — assigning null to a XAML Text property or
+            // passing it across the WinRT boundary throws ArgumentNullException.
+            title = title ?? "";
+            author = author ?? "";
+            thumbnailUrl = thumbnailUrl ?? "";
+            authorId = authorId ?? "";
+
             _currentVideoId = videoId;
             _currentAuthorId = authorId;
             _currentAuthor = author;
