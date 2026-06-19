@@ -498,6 +498,11 @@ namespace subwayTube.Services
                             {
                                 ParseReelShelf(item.GetNamedObject("reelShelfRenderer"), results);
                             }
+                            // Newer grid layout used for Shorts in search results
+                            if (item.ContainsKey("gridShelfViewModel"))
+                            {
+                                ParseGridShelf(item.GetNamedObject("gridShelfViewModel"), results);
+                            }
                             // Short-form videos returned by the duration filter
                             if (item.ContainsKey("videoRenderer"))
                             {
@@ -610,39 +615,81 @@ namespace subwayTube.Services
                     }
                     else if (item.ContainsKey("shortsLockupViewModel"))
                     {
-                        var vm = item.GetNamedObject("shortsLockupViewModel");
-                        string videoId = "";
-                        try
-                        {
-                            videoId = vm.GetNamedObject("onTap")
-                                .GetNamedObject("innertubeCommand")
-                                .GetNamedObject("reelWatchEndpoint")
-                                .GetNamedString("videoId");
-                        }
-                        catch { }
-                        if (string.IsNullOrEmpty(videoId))
-                            continue;
-
-                        string title = "";
-                        try
-                        {
-                            title = vm.GetNamedObject("overlayMetadata")
-                                .GetNamedObject("primaryText")
-                                .GetNamedString("content");
-                        }
-                        catch { }
-
-                        output.Add(new VideoResult
-                        {
-                            Kind = "short",
-                            VideoId = videoId,
-                            Title = title,
-                            ThumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg"
-                        });
+                        var vm = ParseShortsLockup(item.GetNamedObject("shortsLockupViewModel"));
+                        if (vm != null)
+                            output.Add(vm);
                     }
                 }
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Parses a gridShelfViewModel (the grid Shorts shelf returned by search) into
+        /// video results. Each entry is a shortsLockupViewModel.
+        /// </summary>
+        private void ParseGridShelf(JsonObject gridShelf, List<VideoResult> output)
+        {
+            try
+            {
+                if (!gridShelf.ContainsKey("contents"))
+                    return;
+
+                var items = gridShelf.GetNamedArray("contents");
+                for (uint i = 0; i < items.Count; i++)
+                {
+                    var item = items.GetObjectAt(i);
+                    if (!item.ContainsKey("shortsLockupViewModel"))
+                        continue;
+
+                    var vm = ParseShortsLockup(item.GetNamedObject("shortsLockupViewModel"));
+                    if (vm != null)
+                        output.Add(vm);
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Parses a single shortsLockupViewModel into a short-tagged VideoResult.
+        /// </summary>
+        private VideoResult ParseShortsLockup(JsonObject vm)
+        {
+            try
+            {
+                string videoId = "";
+                try
+                {
+                    videoId = vm.GetNamedObject("onTap")
+                        .GetNamedObject("innertubeCommand")
+                        .GetNamedObject("reelWatchEndpoint")
+                        .GetNamedString("videoId");
+                }
+                catch { }
+                if (string.IsNullOrEmpty(videoId))
+                    return null;
+
+                string title = "";
+                try
+                {
+                    title = vm.GetNamedObject("overlayMetadata")
+                        .GetNamedObject("primaryText")
+                        .GetNamedString("content");
+                }
+                catch { }
+
+                return new VideoResult
+                {
+                    Kind = "short",
+                    VideoId = videoId,
+                    Title = title,
+                    ThumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg"
+                };
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>
