@@ -24,6 +24,7 @@ namespace subwayTube
         private readonly InnerTubeService _innerTube = new InnerTubeService();
         private readonly DataService _data = new DataService();
         private readonly ObservableCollection<VideoResult> _results = new ObservableCollection<VideoResult>();
+        private readonly ObservableCollection<VideoResult> _channelResults = new ObservableCollection<VideoResult>();
         private readonly ObservableCollection<VideoResult> _feedItems = new ObservableCollection<VideoResult>();
         private readonly List<VideoResult> _allFeedVideos = new List<VideoResult>();
         private const int FeedBatchSize = 30; // videos rendered per lazy-load batch
@@ -49,6 +50,7 @@ namespace subwayTube
         private bool _displayRequestActive;
         private int _activeTab; // 0=Feed, 1=Search, 2=Favorites
         private int _favSubTab; // 0=Channels, 1=History
+        private int _searchTab; // 0=Videos, 1=Shorts, 2=Channels
         private bool _feedLoaded;
         private int _scaleMode; // 0=full, 1=half (2 per row), 2=third (3 per row)
         private static readonly Windows.Storage.ApplicationDataContainer _localSettings = Windows.Storage.ApplicationData.Current.LocalSettings;
@@ -60,6 +62,7 @@ namespace subwayTube
         {
             this.InitializeComponent();
             ResultsList.ItemsSource = _results;
+            ChannelResultsList.ItemsSource = _channelResults;
             FeedList.ItemsSource = _feedItems;
 
             _streamClient = new Windows.Web.Http.HttpClient(new IosUserAgentFilter());
@@ -121,7 +124,11 @@ namespace subwayTube
                     break;
             }
 
-            ScaleLabel.Text = _scaleMode == 0 ? "1x1" : _scaleMode == 1 ? "1x2" : "1x3";
+            // Show the matching size icon (reused from the old app): full / quarters / niners
+            string sizeIcon = _scaleMode == 0 ? "display_fullsize"
+                : _scaleMode == 1 ? "display_quarters"
+                : "display_niners";
+            ScaleImage.Source = new BitmapImage(new Uri("ms-appx:///Assets/" + sizeIcon + ".png"));
 
             // Apply to all GridViews
             ApplyGridViewSize(FeedList, itemWidth);
@@ -158,6 +165,7 @@ namespace subwayTube
             NavFavorites.Background = _darkBrush;
             NavSettings.Background = _darkBrush;
             RefreshButton.Visibility = Visibility.Visible;
+            ScaleButton.Visibility = Visibility.Visible;
             UpdateBackButtonVisibility();
         }
 
@@ -173,6 +181,7 @@ namespace subwayTube
             NavFavorites.Background = _darkBrush;
             NavSettings.Background = _darkBrush;
             RefreshButton.Visibility = Visibility.Collapsed;
+            ScaleButton.Visibility = Visibility.Visible;
             UpdateSearchHistoryVisibility();
             UpdateBackButtonVisibility();
         }
@@ -189,6 +198,7 @@ namespace subwayTube
             NavFavorites.Background = _accentBrush;
             NavSettings.Background = _darkBrush;
             RefreshButton.Visibility = Visibility.Collapsed;
+            ScaleButton.Visibility = Visibility.Collapsed;
             UpdateFavoritesView();
             UpdateBackButtonVisibility();
         }
@@ -205,6 +215,7 @@ namespace subwayTube
             NavFavorites.Background = _darkBrush;
             NavSettings.Background = _accentBrush;
             RefreshButton.Visibility = Visibility.Collapsed;
+            ScaleButton.Visibility = Visibility.Collapsed;
             SettingsStatus.Text = "";
             UpdateSettingsInfo();
             UpdateBackButtonVisibility();
@@ -1006,17 +1017,23 @@ namespace subwayTube
             // Save search history
             await _data.AddSearchHistoryItem(query);
 
+            bool channelTab = _searchTab == 2;
+            string kind = _searchTab == 2 ? "channel" : (_searchTab == 1 ? "short" : "video");
+
             _results.Clear();
+            _channelResults.Clear();
             ErrorText.Visibility = Visibility.Collapsed;
             SearchHistoryList.Visibility = Visibility.Collapsed;
-            ResultsList.Visibility = Visibility.Visible;
+            ResultsList.Visibility = channelTab ? Visibility.Collapsed : Visibility.Visible;
+            ChannelResultsList.Visibility = channelTab ? Visibility.Visible : Visibility.Collapsed;
             LoadingRing.IsActive = true;
 
             try
             {
-                var results = await _innerTube.SearchAsync(query);
+                var results = await _innerTube.SearchAsync(query, kind);
+                var target = channelTab ? _channelResults : _results;
                 foreach (var r in results)
-                    _results.Add(r);
+                    target.Add(r);
 
                 if (results.Count == 0)
                 {
@@ -1035,18 +1052,61 @@ namespace subwayTube
             }
         }
 
+        private void UpdateSearchTabStyles()
+        {
+            SearchVideosTab.Background = _searchTab == 0 ? _accentBrush : _darkGrayBrush;
+            SearchShortsTab.Background = _searchTab == 1 ? _accentBrush : _darkGrayBrush;
+            SearchChannelsTab.Background = _searchTab == 2 ? _accentBrush : _darkGrayBrush;
+        }
+
+        private async void SearchVideosTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_searchTab == 0) return;
+            _searchTab = 0;
+            UpdateSearchTabStyles();
+            await PerformSearch();
+        }
+
+        private async void SearchShortsTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_searchTab == 1) return;
+            _searchTab = 1;
+            UpdateSearchTabStyles();
+            await PerformSearch();
+        }
+
+        private async void SearchChannelsTab_Click(object sender, RoutedEventArgs e)
+        {
+            if (_searchTab == 2) return;
+            _searchTab = 2;
+            UpdateSearchTabStyles();
+            await PerformSearch();
+        }
+
+        private void ChannelResultsList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var ch = e.ClickedItem as VideoResult;
+            if (ch == null || string.IsNullOrEmpty(ch.AuthorId)) return;
+            OpenChannel(ch.AuthorId, ch.Title, ch.ThumbnailUrl);
+        }
+
         private void UpdateSearchHistoryVisibility()
         {
-            if (_results.Count == 0 && _data.SearchHistory.Count > 0)
+            bool channelTab = _searchTab == 2;
+            bool hasResults = _results.Count > 0 || _channelResults.Count > 0;
+
+            if (!hasResults && _data.SearchHistory.Count > 0)
             {
                 SearchHistoryList.ItemsSource = _data.SearchHistory.AsEnumerable().Reverse().ToList();
                 SearchHistoryList.Visibility = Visibility.Visible;
                 ResultsList.Visibility = Visibility.Collapsed;
+                ChannelResultsList.Visibility = Visibility.Collapsed;
             }
             else
             {
                 SearchHistoryList.Visibility = Visibility.Collapsed;
-                ResultsList.Visibility = Visibility.Visible;
+                ResultsList.Visibility = channelTab ? Visibility.Collapsed : Visibility.Visible;
+                ChannelResultsList.Visibility = channelTab ? Visibility.Visible : Visibility.Collapsed;
             }
         }
 

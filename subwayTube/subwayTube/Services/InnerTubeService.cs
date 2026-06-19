@@ -33,7 +33,7 @@ namespace subwayTube.Services
         /// <summary>
         /// Search YouTube for videos using the InnerTube API (WEB client).
         /// </summary>
-        public async Task<List<VideoResult>> SearchAsync(string query)
+        public async Task<List<VideoResult>> SearchAsync(string query, string kind = "video")
         {
             var body = new JsonObject
             {
@@ -50,12 +50,26 @@ namespace subwayTube.Services
                 ["query"] = JsonValue.CreateStringValue(query)
             };
 
+            // Search filter params (base64 protobuf):
+            //   video   -> type=video           (EgIQAQ==)
+            //   channel -> type=channel         (EgIQAg==)
+            //   short   -> duration<4min        (EgIYAQ==)  YouTube has no dedicated
+            //              Shorts search type, so we bias toward short-form content
+            //              and additionally parse any reel/shorts shelves returned.
+            string filterParams = null;
+            if (kind == "channel") filterParams = "EgIQAg%3D%3D";
+            else if (kind == "short") filterParams = "EgIYAQ%3D%3D";
+            else filterParams = "EgIQAQ%3D%3D";
+
+            if (filterParams != null)
+                body["params"] = JsonValue.CreateStringValue(filterParams);
+
             var content = new StringContent(body.Stringify(), System.Text.Encoding.UTF8, "application/json");
             var response = await _httpClient.PostAsync(SearchUrl, content);
             response.EnsureSuccessStatusCode();
 
             var json = await response.Content.ReadAsStringAsync();
-            return ParseSearchResults(json);
+            return ParseSearchResults(json, kind);
         }
 
         /// <summary>
@@ -435,7 +449,7 @@ namespace subwayTube.Services
             }
         }
 
-        private List<VideoResult> ParseSearchResults(string json)
+        private List<VideoResult> ParseSearchResults(string json, string kind = "video")
         {
             var results = new List<VideoResult>();
 
@@ -465,13 +479,41 @@ namespace subwayTube.Services
                     for (uint j = 0; j < items.Count; j++)
                     {
                         var item = items.GetObjectAt(j);
-                        if (!item.ContainsKey("videoRenderer"))
-                            continue;
 
-                        var video = item.GetNamedObject("videoRenderer");
-                        var result = ParseVideoRenderer(video);
-                        if (result != null)
-                            results.Add(result);
+                        if (kind == "channel")
+                        {
+                            if (item.ContainsKey("channelRenderer"))
+                            {
+                                var ch = ParseChannelRenderer(item.GetNamedObject("channelRenderer"));
+                                if (ch != null)
+                                    results.Add(ch);
+                            }
+                            continue;
+                        }
+
+                        if (kind == "short")
+                        {
+                            // Dedicated Shorts shelves
+                            if (item.ContainsKey("reelShelfRenderer"))
+                            {
+                                ParseReelShelf(item.GetNamedObject("reelShelfRenderer"), results);
+                            }
+                            // Short-form videos returned by the duration filter
+                            if (item.ContainsKey("videoRenderer"))
+                            {
+                                var v = ParseVideoRenderer(item.GetNamedObject("videoRenderer"));
+                                if (v != null) { v.Kind = "short"; results.Add(v); }
+                            }
+                            continue;
+                        }
+
+                        // Default: regular videos
+                        if (item.ContainsKey("videoRenderer"))
+                        {
+                            var result = ParseVideoRenderer(item.GetNamedObject("videoRenderer"));
+                            if (result != null)
+                                results.Add(result);
+                        }
                     }
                 }
             }
@@ -481,6 +523,126 @@ namespace subwayTube.Services
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// Parses a channelRenderer search result into a VideoResult tagged as a channel.
+        /// </summary>
+        private VideoResult ParseChannelRenderer(JsonObject channel)
+        {
+            try
+            {
+                var channelId = channel.GetNamedString("channelId");
+
+                string name = "";
+                if (channel.ContainsKey("title"))
+                    name = GetSimpleText(channel.GetNamedObject("title"));
+
+                string subs = "";
+                if (channel.ContainsKey("videoCountText"))
+                    subs = GetSimpleText(channel.GetNamedObject("videoCountText"));
+                else if (channel.ContainsKey("subscriberCountText"))
+                    subs = GetSimpleText(channel.GetNamedObject("subscriberCountText"));
+
+                string avatar = "";
+                try
+                {
+                    var thumbs = channel.GetNamedObject("thumbnail").GetNamedArray("thumbnails");
+                    if (thumbs.Count > 0)
+                    {
+                        avatar = thumbs.GetObjectAt(thumbs.Count - 1).GetNamedString("url");
+                        if (avatar.StartsWith("//"))
+                            avatar = "https:" + avatar;
+                    }
+                }
+                catch { }
+
+                return new VideoResult
+                {
+                    Kind = "channel",
+                    VideoId = "",
+                    AuthorId = channelId,
+                    Title = name,
+                    Author = subs,
+                    ThumbnailUrl = avatar
+                };
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses a reelShelfRenderer (the horizontal Shorts shelf) into video results.
+        /// Handles both the legacy reelItemRenderer and the newer shortsLockupViewModel.
+        /// </summary>
+        private void ParseReelShelf(JsonObject reelShelf, List<VideoResult> output)
+        {
+            try
+            {
+                if (!reelShelf.ContainsKey("items"))
+                    return;
+
+                var items = reelShelf.GetNamedArray("items");
+                for (uint i = 0; i < items.Count; i++)
+                {
+                    var item = items.GetObjectAt(i);
+
+                    if (item.ContainsKey("reelItemRenderer"))
+                    {
+                        var reel = item.GetNamedObject("reelItemRenderer");
+                        var videoId = reel.ContainsKey("videoId") ? reel.GetNamedString("videoId") : "";
+                        if (string.IsNullOrEmpty(videoId))
+                            continue;
+
+                        string title = "";
+                        if (reel.ContainsKey("headline"))
+                            title = GetSimpleText(reel.GetNamedObject("headline"));
+
+                        output.Add(new VideoResult
+                        {
+                            Kind = "short",
+                            VideoId = videoId,
+                            Title = title,
+                            ThumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg"
+                        });
+                    }
+                    else if (item.ContainsKey("shortsLockupViewModel"))
+                    {
+                        var vm = item.GetNamedObject("shortsLockupViewModel");
+                        string videoId = "";
+                        try
+                        {
+                            videoId = vm.GetNamedObject("onTap")
+                                .GetNamedObject("innertubeCommand")
+                                .GetNamedObject("reelWatchEndpoint")
+                                .GetNamedString("videoId");
+                        }
+                        catch { }
+                        if (string.IsNullOrEmpty(videoId))
+                            continue;
+
+                        string title = "";
+                        try
+                        {
+                            title = vm.GetNamedObject("overlayMetadata")
+                                .GetNamedObject("primaryText")
+                                .GetNamedString("content");
+                        }
+                        catch { }
+
+                        output.Add(new VideoResult
+                        {
+                            Kind = "short",
+                            VideoId = videoId,
+                            Title = title,
+                            ThumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg"
+                        });
+                    }
+                }
+            }
+            catch { }
         }
 
         /// <summary>

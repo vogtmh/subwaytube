@@ -24,7 +24,8 @@
             <Button x:Name="ScaleButton" Grid.Column="1"
                     Click="ScaleButton_Click" Background="Transparent"
                     Margin="4,0,0,0">
-                <TextBlock x:Name="ScaleLabel" Text="1x1" FontSize="14" Foreground="White" FontWeight="Bold" />
+                <Image x:Name="ScaleImage" Source="ms-appx:///Assets/display_fullsize.png"
+                       Height="22" Width="22" Stretch="Uniform" />
             </Button>
             <Button x:Name="RefreshButton" Grid.Column="2"
                     Click="RefreshButton_Click" Background="Transparent"
@@ -75,6 +76,7 @@
         <Grid x:Name="SearchPanel" Grid.Row="1" Visibility="Collapsed">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -89,15 +91,33 @@
                         Click="SearchButton_Click" Margin="8,0,0,0" />
             </Grid>
 
-            <ProgressRing x:Name="LoadingRing" Grid.Row="1" IsActive="False"
+            <!-- Search type tabs -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="SearchVideosTab" Grid.Column="0" Content="Videos"
+                        Click="SearchVideosTab_Click" HorizontalAlignment="Stretch"
+                        Background="{ThemeResource SystemAccentColor}" Foreground="White" />
+                <Button x:Name="SearchShortsTab" Grid.Column="1" Content="Shorts"
+                        Click="SearchShortsTab_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+                <Button x:Name="SearchChannelsTab" Grid.Column="2" Content="Channels"
+                        Click="SearchChannelsTab_Click" HorizontalAlignment="Stretch"
+                        Background="#333333" Foreground="White" />
+            </Grid>
+
+            <ProgressRing x:Name="LoadingRing" Grid.Row="2" IsActive="False"
                           Width="50" Height="50" Foreground="White"
                           HorizontalAlignment="Center" VerticalAlignment="Center" />
-            <TextBlock x:Name="ErrorText" Grid.Row="1" Visibility="Collapsed"
+            <TextBlock x:Name="ErrorText" Grid.Row="2" Visibility="Collapsed"
                        Foreground="Red" FontSize="14" TextWrapping="Wrap"
                        HorizontalAlignment="Center" VerticalAlignment="Center" Margin="20" />
 
             <!-- Search history -->
-            <ListView x:Name="SearchHistoryList" Grid.Row="1" Background="Transparent"
+            <ListView x:Name="SearchHistoryList" Grid.Row="2" Background="Transparent"
                       ItemClick="SearchHistoryList_ItemClick" IsItemClickEnabled="True"
                       SelectionMode="None" Visibility="Collapsed">
                 <ListView.ItemTemplate>
@@ -109,7 +129,7 @@
             </ListView>
 
             <!-- Search results -->
-            <GridView x:Name="ResultsList" Grid.Row="1" Background="Transparent"
+            <GridView x:Name="ResultsList" Grid.Row="2" Background="Transparent"
                       ItemClick="ResultsList_ItemClick" IsItemClickEnabled="True" SelectionMode="None">
                 <GridView.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -134,6 +154,32 @@
                     </DataTemplate>
                 </GridView.ItemTemplate>
             </GridView>
+
+            <!-- Channel results -->
+            <ListView x:Name="ChannelResultsList" Grid.Row="2" Background="Transparent"
+                      ItemClick="ChannelResultsList_ItemClick" IsItemClickEnabled="True"
+                      SelectionMode="None" Visibility="Collapsed">
+                <ListView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="56" Height="56" CornerRadius="28" Background="#222222">
+                                <Border.Clip>
+                                    <RectangleGeometry Rect="0,0,56,56" />
+                                </Border.Clip>
+                                <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                                <TextBlock Text="{Binding Title}" Foreground="White" FontSize="15" TextWrapping="Wrap" MaxLines="2" />
+                                <TextBlock Text="{Binding Author}" Foreground="Gray" FontSize="12" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
         </Grid>
 
         <!-- ==================== FAVORITES PANEL ==================== -->

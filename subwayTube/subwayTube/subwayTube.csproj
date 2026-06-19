@@ -116,6 +116,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\toplogo.png" />
+    <Content Include="Assets\display_fullsize.png" />
+    <Content Include="Assets\display_quarters.png" />
+    <Content Include="Assets\display_niners.png" />
     <Content Include="Assets\LargeTile.scale-200.png" />
     <Content Include="Assets\LargeTile.scale-200.scale-100.png" />
     <Content Include="Assets\LargeTile.scale-200.scale-125.png" />

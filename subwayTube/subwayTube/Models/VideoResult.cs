@@ -19,5 +19,7 @@ namespace subwayTube.Models
         public string AuthorThumbnailUrl { get; set; }
         // All channels credited on the video (collaborations have more than one).
         public System.Collections.Generic.List<ChannelRef> Channels { get; set; }
+        // "video", "short" or "channel" — distinguishes search result types.
+        public string Kind { get; set; } = "video";
     }
 }
