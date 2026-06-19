@@ -331,6 +331,17 @@ namespace subwayTube.Services
             if (!root.ContainsKey("streamingData"))
                 throw new Exception("No streaming data in response");
 
+            // Primary channel (always a single uploader) — used as a fallback when
+            // the calling context has no channel info for the video.
+            if (root.ContainsKey("videoDetails"))
+            {
+                var vd = root.GetNamedObject("videoDetails");
+                if (vd.ContainsKey("author"))
+                    result.Author = vd.GetNamedString("author");
+                if (vd.ContainsKey("channelId"))
+                    result.ChannelId = vd.GetNamedString("channelId");
+            }
+
             var streamingData = root.GetNamedObject("streamingData");
 
             // Extract HLS manifest URL (for native adaptive playback)
@@ -472,6 +483,53 @@ namespace subwayTube.Services
             return results;
         }
 
+        /// <summary>
+        /// Extracts every channel referenced in a byline text object (ownerText /
+        /// longBylineText). Collaboration videos list more than one channel, each as
+        /// a separate run with its own browse navigation endpoint.
+        /// </summary>
+        private List<ChannelRef> ExtractChannelRuns(JsonObject bylineObj)
+        {
+            var channels = new List<ChannelRef>();
+            try
+            {
+                if (!bylineObj.ContainsKey("runs"))
+                    return channels;
+
+                var runs = bylineObj.GetNamedArray("runs");
+                for (uint i = 0; i < runs.Count; i++)
+                {
+                    var run = runs.GetObjectAt(i);
+                    if (!run.ContainsKey("navigationEndpoint"))
+                        continue;
+
+                    var endpoint = run.GetNamedObject("navigationEndpoint");
+                    if (!endpoint.ContainsKey("browseEndpoint"))
+                        continue;
+
+                    var browse = endpoint.GetNamedObject("browseEndpoint");
+                    if (!browse.ContainsKey("browseId"))
+                        continue;
+
+                    var channelId = browse.GetNamedString("browseId");
+                    if (string.IsNullOrEmpty(channelId) || !channelId.StartsWith("UC"))
+                        continue;
+
+                    var name = run.ContainsKey("text") ? run.GetNamedString("text") : channelId;
+
+                    bool exists = false;
+                    foreach (var c in channels)
+                    {
+                        if (c.ChannelId == channelId) { exists = true; break; }
+                    }
+                    if (!exists)
+                        channels.Add(new ChannelRef { Name = name, ChannelId = channelId });
+                }
+            }
+            catch { }
+            return channels;
+        }
+
         private VideoResult ParseVideoRenderer(JsonObject video)
         {
             try
@@ -482,35 +540,20 @@ namespace subwayTube.Services
 
                 string author = "";
                 string authorId = "";
+                List<ChannelRef> channels = null;
                 if (video.ContainsKey("ownerText"))
                 {
                     author = GetTextFromRuns(video.GetNamedObject("ownerText"));
-                    // Extract authorId from navigation endpoint
-                    try
-                    {
-                        var runs = video.GetNamedObject("ownerText").GetNamedArray("runs");
-                        if (runs.Count > 0)
-                        {
-                            var endpoint = runs.GetObjectAt(0).GetNamedObject("navigationEndpoint");
-                            authorId = endpoint.GetNamedObject("browseEndpoint").GetNamedString("browseId");
-                        }
-                    }
-                    catch { }
+                    channels = ExtractChannelRuns(video.GetNamedObject("ownerText"));
                 }
                 else if (video.ContainsKey("longBylineText"))
                 {
                     author = GetTextFromRuns(video.GetNamedObject("longBylineText"));
-                    try
-                    {
-                        var runs = video.GetNamedObject("longBylineText").GetNamedArray("runs");
-                        if (runs.Count > 0)
-                        {
-                            var endpoint = runs.GetObjectAt(0).GetNamedObject("navigationEndpoint");
-                            authorId = endpoint.GetNamedObject("browseEndpoint").GetNamedString("browseId");
-                        }
-                    }
-                    catch { }
+                    channels = ExtractChannelRuns(video.GetNamedObject("longBylineText"));
                 }
+
+                if (channels != null && channels.Count > 0)
+                    authorId = channels[0].ChannelId;
 
                 string publishedText = "";
                 if (video.ContainsKey("publishedTimeText"))
@@ -538,7 +581,8 @@ namespace subwayTube.Services
                     Duration = duration,
                     ThumbnailUrl = thumbnailUrl,
                     ViewCount = viewCount,
-                    PublishedText = publishedText
+                    PublishedText = publishedText,
+                    Channels = channels
                 };
             }
             catch (Exception)

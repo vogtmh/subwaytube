@@ -37,6 +37,7 @@ namespace subwayTube
         private string _currentAuthorId;
         private string _currentAuthor;
         private string _currentThumbnailUrl;
+        private List<ChannelRef> _currentChannels;
         private bool _ignoreQualityChange;
         private PlayerResponse _lastPlayerResponse;
         private string _lastPlayedUrl;
@@ -705,6 +706,7 @@ namespace subwayTube
             _currentAuthorId = item.AuthorId;
             _currentAuthor = item.Author;
             _currentThumbnailUrl = item.ThumbnailUrl;
+            _currentChannels = null;
 
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
@@ -972,7 +974,7 @@ namespace subwayTube
         {
             var video = e.ClickedItem as VideoResult;
             if (video == null) return;
-            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId);
+            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId, video.Channels);
         }
 
         // ==================== SEARCH ====================
@@ -1060,7 +1062,7 @@ namespace subwayTube
         {
             var video = e.ClickedItem as VideoResult;
             if (video == null) return;
-            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId);
+            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId, video.Channels);
         }
 
         // ==================== FAVORITES ====================
@@ -1212,12 +1214,12 @@ namespace subwayTube
         {
             var video = e.ClickedItem as VideoResult;
             if (video == null) return;
-            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId);
+            await PlayVideo(video.VideoId, video.Title, video.Author, video.ThumbnailUrl, video.AuthorId, video.Channels);
         }
 
         // ==================== VIDEO PLAYER ====================
 
-        private async System.Threading.Tasks.Task PlayVideo(string videoId, string title, string author, string thumbnailUrl, string authorId = "")
+        private async System.Threading.Tasks.Task PlayVideo(string videoId, string title, string author, string thumbnailUrl, string authorId = "", List<ChannelRef> channels = null)
         {
             int session = ++_playSession;
 
@@ -1225,6 +1227,7 @@ namespace subwayTube
             _currentAuthorId = authorId;
             _currentAuthor = author;
             _currentThumbnailUrl = thumbnailUrl;
+            _currentChannels = channels;
 
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
@@ -1236,7 +1239,7 @@ namespace subwayTube
             PlayerLoadingRing.IsActive = true;
 
             // Update heart icon
-            PlayerHeartIcon.Glyph = (!string.IsNullOrEmpty(authorId) && _data.IsSubscribed(authorId)) ? "\uEB52" : "\uEB51";
+            UpdatePlayerHeartIcon();
             UpdateDownloadIcon(videoId);
 
             // Record history
@@ -1260,6 +1263,19 @@ namespace subwayTube
 
                 _lastPlayerResponse = playerResponse;
                 _cachedHlsUrl = playerResponse.HlsManifestUrl;
+
+                // If we opened the video without channel info (e.g. direct video id,
+                // or a result whose byline had no channel), fall back to the primary
+                // channel from the player response so the follow button still works.
+                if ((_currentChannels == null || _currentChannels.Count == 0) &&
+                    string.IsNullOrEmpty(_currentAuthorId) &&
+                    !string.IsNullOrEmpty(playerResponse.ChannelId))
+                {
+                    _currentAuthorId = playerResponse.ChannelId;
+                    if (string.IsNullOrEmpty(_currentAuthor))
+                        _currentAuthor = playerResponse.Author;
+                    UpdatePlayerHeartIcon();
+                }
 
                 var dashMpd = DashManifestGenerator.Generate(playerResponse.Formats);
 
@@ -1618,9 +1634,105 @@ namespace subwayTube
 
         private async void PlayerSubscribe_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(_currentAuthorId)) return;
-            await _data.ToggleSubscription(_currentAuthorId, _currentAuthor, _currentThumbnailUrl);
-            PlayerHeartIcon.Glyph = _data.IsSubscribed(_currentAuthorId) ? "\uEB52" : "\uEB51";
+            var channels = GetCurrentChannelList();
+            if (channels.Count == 0)
+                return;
+
+            if (channels.Count == 1)
+            {
+                var ch = channels[0];
+                await _data.ToggleSubscription(ch.ChannelId, ch.Name, _currentThumbnailUrl);
+            }
+            else
+            {
+                await ShowChannelSelectionDialogAsync(channels);
+            }
+
+            UpdatePlayerHeartIcon();
+        }
+
+        /// <summary>
+        /// Returns the de-duplicated list of channels credited on the current video.
+        /// Falls back to the single primary author when no collaboration list exists.
+        /// </summary>
+        private List<ChannelRef> GetCurrentChannelList()
+        {
+            var list = new List<ChannelRef>();
+
+            if (_currentChannels != null)
+            {
+                foreach (var c in _currentChannels)
+                {
+                    if (c == null || string.IsNullOrEmpty(c.ChannelId))
+                        continue;
+                    bool exists = false;
+                    foreach (var e in list)
+                        if (e.ChannelId == c.ChannelId) { exists = true; break; }
+                    if (!exists)
+                        list.Add(c);
+                }
+            }
+
+            if (list.Count == 0 && !string.IsNullOrEmpty(_currentAuthorId))
+                list.Add(new ChannelRef { Name = _currentAuthor, ChannelId = _currentAuthorId });
+
+            return list;
+        }
+
+        /// <summary>
+        /// Sets the player follow icon to filled when any credited channel is followed.
+        /// </summary>
+        private void UpdatePlayerHeartIcon()
+        {
+            bool anySubscribed = false;
+            foreach (var ch in GetCurrentChannelList())
+            {
+                if (_data.IsSubscribed(ch.ChannelId)) { anySubscribed = true; break; }
+            }
+            PlayerHeartIcon.Glyph = anySubscribed ? "\uEB52" : "\uEB51";
+        }
+
+        /// <summary>
+        /// Shows a dialog listing every channel credited on a collaboration video so
+        /// the user can follow/unfollow each one individually.
+        /// </summary>
+        private async System.Threading.Tasks.Task ShowChannelSelectionDialogAsync(List<ChannelRef> channels)
+        {
+            var panel = new StackPanel();
+
+            foreach (var ch in channels)
+            {
+                var channel = ch; // capture per-iteration
+                var btn = new Button
+                {
+                    Tag = channel,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    HorizontalContentAlignment = HorizontalAlignment.Left,
+                    Content = FollowButtonText(channel)
+                };
+                btn.Click += async (s, args) =>
+                {
+                    await _data.ToggleSubscription(channel.ChannelId, channel.Name, _currentThumbnailUrl);
+                    btn.Content = FollowButtonText(channel);
+                    UpdatePlayerHeartIcon();
+                };
+                panel.Children.Add(btn);
+            }
+
+            var dialog = new ContentDialog
+            {
+                Title = "Select channel",
+                Content = panel,
+                CloseButtonText = "Done"
+            };
+            await dialog.ShowAsync();
+        }
+
+        private string FollowButtonText(ChannelRef channel)
+        {
+            string name = string.IsNullOrEmpty(channel.Name) ? "Channel" : channel.Name;
+            return (_data.IsSubscribed(channel.ChannelId) ? "\u2713 Following  " : "Follow  ") + name;
         }
 
         private void PlayerShare_Click(object sender, RoutedEventArgs e)
