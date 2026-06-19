@@ -550,7 +550,7 @@ namespace subwayTube.Services
                     var thumbs = channel.GetNamedObject("thumbnail").GetNamedArray("thumbnails");
                     if (thumbs.Count > 0)
                     {
-                        avatar = thumbs.GetObjectAt(thumbs.Count - 1).GetNamedString("url");
+                        avatar = thumbs.GetObjectAt((uint)(thumbs.Count - 1)).GetNamedString("url");
                         if (avatar.StartsWith("//"))
                             avatar = "https:" + avatar;
                     }
