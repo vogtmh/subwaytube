@@ -215,6 +215,7 @@ namespace subwayTube
             var v = package.Id.Version;
             SettingsVersion.Text = "Version " + v.Major + "." + v.Minor + "." + v.Build + "." + v.Revision;
 
+            SettingsBuildDate.Text = "Built " + BuildInfo.Date;
             UpdateDownloadFolderDisplay();
         }
 

@@ -242,6 +242,8 @@
                            FontSize="26" FontWeight="Bold" Foreground="White" />
                 <TextBlock x:Name="SettingsVersion" Text="Version"
                            FontSize="14" Foreground="Gray" Margin="0,2,0,0" />
+                <TextBlock x:Name="SettingsBuildDate" Text="Build"
+                           FontSize="14" Foreground="Gray" Margin="0,2,0,0" />
                 <TextBlock Text="Developed by mavodev"
                            FontSize="14" Foreground="Gray" Margin="0,2,0,0" />
 
