@@ -79,6 +79,7 @@ namespace subwayTube
             await _data.LoadAllAsync();
             ChannelsList.ItemsSource = _data.Subscriptions;
             HistoryList.ItemsSource = _data.History;
+            ShowFeed();
             await LoadFeedAsync();
         }
 
