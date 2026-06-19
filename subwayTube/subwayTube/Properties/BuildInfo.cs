@@ -1,1 +1,1 @@
-namespace subwayTube { internal static class BuildInfo { public const string Date = "dev build"; } }
+﻿namespace subwayTube { internal static class BuildInfo { public const string Date = "19. Jun 2026"; } }

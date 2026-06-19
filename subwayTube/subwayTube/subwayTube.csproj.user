@@ -14,5 +14,13 @@
     <SplashScreenSource>C:\Users\mavo\Documents\subwaytube\misc\subwaytube_invidious\subwayTube\images\Square44x44Logo.targetsize-256.png</SplashScreenSource>
     <BadgeLogoSource>C:\Users\mavo\Documents\subwaytube\misc\subwaytube_invidious\subwayTube\images\Square44x44Logo.targetsize-256.png</BadgeLogoSource>
     <PackageLogoSource>C:\Users\mavo\Documents\subwaytube\misc\subwaytube_invidious\subwayTube\images\Square44x44Logo.targetsize-256.png</PackageLogoSource>
+    <AppxPackageIsForStore>False</AppxPackageIsForStore>
+    <AppxShowAllApps>False</AppxShowAllApps>
+    <AppxBuildConfigurationSelection>arm</AppxBuildConfigurationSelection>
+    <PackageOptionalProjectsInIdeBuilds>True</PackageOptionalProjectsInIdeBuilds>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM'">
+    <DeviceId>30F105C9-681E-420b-A277-7C086EAD8A4E</DeviceId>
+    <UseEmulator>true</UseEmulator>
   </PropertyGroup>
 </Project>
