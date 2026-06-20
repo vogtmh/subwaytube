@@ -33,6 +33,7 @@ namespace subwayTube
         private bool _isPlayerOpen;
         private int _playSession; // increments each time a video is opened/closed to invalidate stale playback
         private bool _isChannelOpen;
+        private Windows.Graphics.Display.DisplayInformation _displayInfo;
         private List<StreamFormat> _currentFormats;
         private string _currentVideoId;
         private string _currentAuthorId;
@@ -77,6 +78,10 @@ namespace subwayTube
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
             VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
             VideoPlayer.MediaPlayer.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
+
+            // Auto fullscreen when the device is rotated to landscape while playing.
+            _displayInfo = Windows.Graphics.Display.DisplayInformation.GetForCurrentView();
+            _displayInfo.OrientationChanged += DisplayInfo_OrientationChanged;
 
             // Load data and show feed
             InitAsync();
@@ -725,6 +730,8 @@ namespace subwayTube
 
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
+            // If the device is already held in landscape, start in full-window mode.
+            DisplayInfo_OrientationChanged(_displayInfo, null);
             UpdateBackButtonVisibility();
 
             PlayerTitle.Visibility = Visibility.Collapsed;
@@ -1350,6 +1357,8 @@ namespace subwayTube
 
             PlayerOverlay.Visibility = Visibility.Visible;
             _isPlayerOpen = true;
+            // If the device is already held in landscape, start in full-window mode.
+            DisplayInfo_OrientationChanged(_displayInfo, null);
             UpdateBackButtonVisibility();
 
             PlayerTitle.Visibility = Visibility.Collapsed;
@@ -1941,6 +1950,20 @@ namespace subwayTube
             ClosePlayer();
         }
 
+        // Rotating the device to landscape enters full-window video; rotating back
+        // to portrait exits it. Only acts while the video player is open.
+        private void DisplayInfo_OrientationChanged(Windows.Graphics.Display.DisplayInformation sender, object args)
+        {
+            if (!_isPlayerOpen)
+                return;
+
+            var orientation = sender.CurrentOrientation;
+            bool isLandscape = orientation == Windows.Graphics.Display.DisplayOrientations.Landscape
+                || orientation == Windows.Graphics.Display.DisplayOrientations.LandscapeFlipped;
+
+            VideoPlayer.IsFullWindow = isLandscape;
+        }
+
         private void ClosePlayer()
         {
             // Invalidate any in-flight playback setup so a late-arriving stream
@@ -1953,6 +1976,7 @@ namespace subwayTube
                 _currentStream.Dispose();
                 _currentStream = null;
             }
+            VideoPlayer.IsFullWindow = false;
             PlayerOverlay.Visibility = Visibility.Collapsed;
             DebugOverlay.Visibility = Visibility.Collapsed;
             _isPlayerOpen = false;
