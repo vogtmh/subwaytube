@@ -1396,6 +1396,26 @@ namespace subwayTube
                     UpdatePlayerHeartIcon();
                 }
 
+                // When the video was opened without real metadata (e.g. pasted URL/ID,
+                // where the URL itself was used as the title), backfill the real title,
+                // author and thumbnail from the player response and refresh the UI and
+                // history entry so the correct name is shown and stored.
+                bool titleIsUrlOrId = string.IsNullOrEmpty(title) || ExtractVideoId(title) != null;
+                if (titleIsUrlOrId && !string.IsNullOrEmpty(playerResponse.Title))
+                {
+                    title = playerResponse.Title;
+                    if (string.IsNullOrEmpty(author))
+                        author = playerResponse.Author ?? "";
+                    if (string.IsNullOrEmpty(thumbnailUrl))
+                        thumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+
+                    _currentAuthor = author;
+                    _currentThumbnailUrl = thumbnailUrl;
+                    PlayerVideoTitle.Text = title;
+
+                    await _data.AddHistoryItem(videoId, title, thumbnailUrl, _currentAuthorId, author);
+                }
+
                 var dashMpd = DashManifestGenerator.Generate(playerResponse.Formats);
 
                 var avcVideoFormats = playerResponse.Formats

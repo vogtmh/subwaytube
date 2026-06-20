@@ -363,6 +363,8 @@ namespace subwayTube.Services
                     result.Author = vd.GetNamedString("author");
                 if (vd.ContainsKey("channelId"))
                     result.ChannelId = vd.GetNamedString("channelId");
+                if (vd.ContainsKey("title"))
+                    result.Title = vd.GetNamedString("title");
             }
 
             var streamingData = root.GetNamedObject("streamingData");

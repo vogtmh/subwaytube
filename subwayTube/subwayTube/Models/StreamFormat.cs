@@ -63,6 +63,7 @@ namespace subwayTube.Models
         public string HlsManifestUrl { get; set; }
         public string Author { get; set; }
         public string ChannelId { get; set; }
+        public string Title { get; set; }
         public List<StreamFormat> Formats { get; set; } = new List<StreamFormat>();
     }
 }
