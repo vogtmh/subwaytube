@@ -753,6 +753,12 @@ namespace subwayTube.Services
             {
                 var videoId = video.GetNamedString("videoId");
 
+                // Skip currently-airing and upcoming live streams: these have no HLS
+                // manifest and no muxed format, and their adaptive segment URLs are
+                // gated behind a po_token (403), so they cannot be played on the phone.
+                if (IsLiveOrUpcoming(video))
+                    return null;
+
                 var title = GetTextFromRuns(video.GetNamedObject("title"));
 
                 string author = "";
@@ -809,6 +815,59 @@ namespace subwayTube.Services
         }
 
         /// <summary>
+        /// Detects whether a videoRenderer represents a currently-airing or scheduled
+        /// (upcoming) live stream. Such items cannot be played on Windows 10 Mobile
+        /// (no HLS, no muxed format, po_token-gated segments) and should be filtered out.
+        /// Finished livestream recordings are NOT flagged here — they behave like normal
+        /// VODs (they carry a lengthText / DEFAULT overlay) and remain playable.
+        /// </summary>
+        private bool IsLiveOrUpcoming(JsonObject video)
+        {
+            try
+            {
+                // Scheduled streams expose a dedicated upcomingEventData block.
+                if (video.ContainsKey("upcomingEventData"))
+                    return true;
+
+                // Thumbnail overlay time-status: style "LIVE" (on-air) or "UPCOMING".
+                if (video.ContainsKey("thumbnailOverlays"))
+                {
+                    var overlays = video.GetNamedArray("thumbnailOverlays");
+                    for (uint i = 0; i < overlays.Count; i++)
+                    {
+                        var overlay = overlays.GetObjectAt(i);
+                        if (!overlay.ContainsKey("thumbnailOverlayTimeStatusRenderer"))
+                            continue;
+                        var ts = overlay.GetNamedObject("thumbnailOverlayTimeStatusRenderer");
+                        if (!ts.ContainsKey("style"))
+                            continue;
+                        var style = ts.GetNamedString("style");
+                        if (style == "LIVE" || style == "UPCOMING")
+                            return true;
+                    }
+                }
+
+                // Metadata badges: "BADGE_STYLE_TYPE_LIVE_NOW".
+                if (video.ContainsKey("badges"))
+                {
+                    var badges = video.GetNamedArray("badges");
+                    for (uint i = 0; i < badges.Count; i++)
+                    {
+                        var badge = badges.GetObjectAt(i);
+                        if (!badge.ContainsKey("metadataBadgeRenderer"))
+                            continue;
+                        var mbr = badge.GetNamedObject("metadataBadgeRenderer");
+                        if (mbr.ContainsKey("style") &&
+                            mbr.GetNamedString("style") == "BADGE_STYLE_TYPE_LIVE_NOW")
+                            return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        /// <summary>
         /// Parses the new lockupViewModel format used by the browse API (channel videos tab).
         /// Structure: contentId (videoId), metadata.lockupMetadataViewModel.title.content,
         /// metadata.lockupMetadataViewModel.metadata.contentMetadataViewModel.metadataRows
@@ -819,6 +878,10 @@ namespace subwayTube.Services
             {
                 var videoId = lockup.GetNamedString("contentId");
                 string thumbnailUrl = "http://i.ytimg.com/vi/" + videoId + "/mqdefault.jpg";
+
+                // Skip currently-airing / upcoming live streams (unplayable on the phone).
+                if (IsLockupLiveOrUpcoming(lockup))
+                    return null;
 
                 string title = "";
                 string publishedText = "";
@@ -892,6 +955,54 @@ namespace subwayTube.Services
             {
                 return null;
             }
+        }
+
+
+        /// <summary>
+        /// Detects whether a lockupViewModel (channel Videos tab) is a currently-airing
+        /// or upcoming live stream. Checks the thumbnail overlay badges for a "LIVE" /
+        /// "UPCOMING" marker. Finished recordings carry a normal duration badge and pass.
+        /// </summary>
+        private bool IsLockupLiveOrUpcoming(JsonObject lockup)
+        {
+            try
+            {
+                if (!lockup.ContainsKey("contentImage"))
+                    return false;
+                var ci = lockup.GetNamedObject("contentImage");
+                if (!ci.ContainsKey("thumbnailViewModel"))
+                    return false;
+                var tvm = ci.GetNamedObject("thumbnailViewModel");
+                if (!tvm.ContainsKey("overlays"))
+                    return false;
+
+                var overlays = tvm.GetNamedArray("overlays");
+                for (uint i = 0; i < overlays.Count; i++)
+                {
+                    var overlay = overlays.GetObjectAt(i);
+                    if (!overlay.ContainsKey("thumbnailOverlayBadgeViewModel"))
+                        continue;
+                    var bvm = overlay.GetNamedObject("thumbnailOverlayBadgeViewModel");
+                    if (!bvm.ContainsKey("thumbnailBadges"))
+                        continue;
+                    var badges = bvm.GetNamedArray("thumbnailBadges");
+                    for (uint b = 0; b < badges.Count; b++)
+                    {
+                        var badge = badges.GetObjectAt(b);
+                        if (!badge.ContainsKey("thumbnailBadgeViewModel"))
+                            continue;
+                        var tb = badge.GetNamedObject("thumbnailBadgeViewModel");
+                        if (!tb.ContainsKey("text"))
+                            continue;
+                        var text = tb.GetNamedString("text").ToLowerInvariant();
+                        if (text.Contains("live") || text.Contains("upcoming") ||
+                            text.Contains("waiting"))
+                            return true;
+                    }
+                }
+            }
+            catch { }
+            return false;
         }
 
 
