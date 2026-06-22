@@ -79,10 +79,10 @@ namespace subwayTube
             VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
             VideoPlayer.MediaPlayer.PlaybackSession.PlaybackStateChanged += PlaybackSession_PlaybackStateChanged;
 
-            // Disable automatic System Media Transport Controls integration so pressing
-            // the volume keys shows the small system volume bar instead of the large
-            // "Media + Apps" media flyout overlay.
-            VideoPlayer.MediaPlayer.CommandManager.IsEnabled = false;
+            // NOTE: Do NOT set CommandManager.IsEnabled = false here. The in-app
+            // MediaPlayerElement transport controls (play/pause/seek) route their
+            // commands through the MediaPlaybackCommandManager, so disabling it also
+            // disables those buttons — leaving only the back/stop action working.
 
             // Auto fullscreen when the device is rotated to landscape while playing.
             _displayInfo = Windows.Graphics.Display.DisplayInformation.GetForCurrentView();
