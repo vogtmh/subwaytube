@@ -55,6 +55,8 @@ namespace subwayTube
         private int _channelTab; // 0=Videos, 1=Shorts
         private bool _feedLoaded;
         private int _scaleMode; // 0=full, 1=half (2 per row), 2=third (3 per row)
+        private bool _useSystemAccent = true; // follow the phone's system accent color
+        private static readonly Windows.UI.Color _fixedAccentColor = Windows.UI.Color.FromArgb(255, 0, 120, 215);
         private static readonly Windows.Storage.ApplicationDataContainer _localSettings = Windows.Storage.ApplicationData.Current.LocalSettings;
         private static readonly Windows.UI.Xaml.Media.SolidColorBrush _darkBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 17, 17, 17));
         private static readonly Windows.UI.Xaml.Media.SolidColorBrush _darkGrayBrush = new Windows.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 51, 51, 51));
@@ -74,6 +76,11 @@ namespace subwayTube
             // Restore saved scaling mode
             if (_localSettings.Values.ContainsKey("scaleMode"))
                 _scaleMode = (int)_localSettings.Values["scaleMode"];
+
+            // Restore accent color preference (default: follow the system accent color)
+            if (_localSettings.Values.ContainsKey("useSystemAccent"))
+                _useSystemAccent = (bool)_localSettings.Values["useSystemAccent"];
+            ApplyAccentColor();
 
             SystemNavigationManager.GetForCurrentView().BackRequested += OnBackRequested;
             VideoPlayer.MediaPlayer.MediaFailed += MediaPlayer_MediaFailed;
@@ -237,6 +244,49 @@ namespace subwayTube
 
         // ==================== SETTINGS ====================
 
+        /// <summary>
+        /// Applies the active accent color to the shared accent brush. When
+        /// <c>_useSystemAccent</c> is true the phone's chosen accent color is used;
+        /// otherwise the app's default blue. All accent surfaces share the same
+        /// SolidColorBrush instance, so mutating its color updates them live.
+        /// </summary>
+        private void ApplyAccentColor()
+        {
+            Windows.UI.Color color;
+            if (_useSystemAccent)
+            {
+                try
+                {
+                    color = (Windows.UI.Color)Windows.UI.Xaml.Application.Current
+                        .Resources["SystemAccentColor"];
+                }
+                catch
+                {
+                    color = _fixedAccentColor;
+                }
+            }
+            else
+            {
+                color = _fixedAccentColor;
+            }
+
+            _accentBrush.Color = color;
+
+            // These elements use a separate hard-coded brush in XAML; point them at
+            // the shared accent brush so they follow the preference too.
+            if (SettingsStatus != null)
+                SettingsStatus.Foreground = _accentBrush;
+            if (DownloadProgress != null)
+                DownloadProgress.Foreground = _accentBrush;
+        }
+
+        private void AccentToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            _useSystemAccent = AccentToggle.IsOn;
+            _localSettings.Values["useSystemAccent"] = _useSystemAccent;
+            ApplyAccentColor();
+        }
+
         private void UpdateSettingsInfo()
         {
             var package = Windows.ApplicationModel.Package.Current;
@@ -245,6 +295,7 @@ namespace subwayTube
             SettingsVersion.Text = "Version " + v.Major + "." + v.Minor + "." + v.Build + "." + v.Revision;
 
             SettingsBuildDate.Text = "Built " + BuildInfo.Date;
+            AccentToggle.IsOn = _useSystemAccent;
             UpdateDownloadFolderDisplay();
         }
 

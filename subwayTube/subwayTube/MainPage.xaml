@@ -317,6 +317,14 @@
                         Click="ChangeDownloadFolderButton_Click" HorizontalAlignment="Stretch"
                         Background="#333333" Foreground="White" />
 
+                <TextBlock Text="Appearance" FontSize="18" FontWeight="SemiBold"
+                           Foreground="White" Margin="0,28,0,8" />
+                <ToggleSwitch x:Name="AccentToggle" Header="Use system accent color"
+                              Foreground="White" OffContent="Off" OnContent="On"
+                              Toggled="AccentToggle_Toggled" />
+                <TextBlock Text="When off, the app uses its default blue accent."
+                           FontSize="12" Foreground="Gray" TextWrapping="Wrap" Margin="0,4,0,0" />
+
                 <TextBlock x:Name="SettingsStatus" Text="" FontSize="13"
                            Foreground="#0078D7" TextWrapping="Wrap" Margin="0,16,0,0" />
             </StackPanel>
